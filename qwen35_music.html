@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>LED MATRIX 200 FX</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    background: #000;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    font-family: 'Helvetica Neue', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #start-overlay {
+    position: fixed; inset: 0;
+    background: #000;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 1000;
+    cursor: pointer;
+    transition: opacity 0.5s;
+  }
+  #start-overlay h1 {
+    color: #fff;
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 10px;
+    margin-bottom: 30px;
+  }
+  #start-overlay p {
+    color: #555;
+    font-size: 13px;
+    letter-spacing: 3px;
+  }
+  #start-overlay .pulse {
+    width: 70px; height: 70px;
+    border: 2px solid #333;
+    border-radius: 50%;
+    margin-bottom: 25px;
+    animation: pulse 2s ease-in-out infinite;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #start-overlay .pulse::after {
+    content: '▶';
+    color: #444;
+    font-size: 20px;
+    margin-left: 3px;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); border-color: #333; }
+    50% { transform: scale(1.08); border-color: #666; }
+  }
+
+  #header {
+    width: 100%;
+    padding: 10px 16px 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  #header .title {
+    color: #333;
+    font-size: 10px;
+    letter-spacing: 5px;
+    font-weight: 300;
+  }
+  #header .mode-indicator {
+    color: #444;
+    font-size: 9px;
+    letter-spacing: 2px;
+    transition: color 0.3s;
+  }
+  #header .mode-indicator.rec { color: #ff3b3b; text-shadow: 0 0 8px rgba(255,59,59,0.5); }
+  #header .mode-indicator.loop { color: #3b9bff; text-shadow: 0 0 8px rgba(59,155,255,0.5); }
+
+  #matrix-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 4px;
+    overflow: hidden;
+  }
+
+  #matrix {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(20, 1fr);
+    gap: 2px;
+    aspect-ratio: 1 / 2;
+    width: min(96vw, 48vh);
+    height: min(192vw, 88vh);
+    max-width: 380px;
+    max-height: 760px;
+  }
+
+  .led {
+    border-radius: 2px;
+    background: #0d0d0d;
+    position: relative;
+    /* 滑らかなトランジション */
+    transition: background 0.15s ease-out, box-shadow 0.45s ease-out, transform 0.12s ease, opacity 0.4s ease, filter 0.3s ease;
+    cursor: pointer;
+  }
+
+  .led::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 35%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.04), transparent);
+    border-radius: 2px 2px 0 0;
+    pointer-events: none;
+  }
+
+  /* アクティブ状態 */
+  .led.active {
+    transform: scale(0.9);
+    filter: brightness(1.4);
+    z-index: 2;
+  }
+
+  /* 周囲のぼんやり光るオーラ */
+  .led.aura {
+    opacity: 0.55;
+    filter: blur(1.8px);
+    z-index: 1;
+  }
+
+  /* ZONE COLORS & AURA VARIANTS */
+  .led.zone-drums.active { background: #ff3b3b; box-shadow: 0 0 8px rgba(255,59,59,0.8), 0 0 20px rgba(255,59,59,0.3); }
+  .led.zone-drums.aura { background: rgba(255,59,59,0.25); box-shadow: 0 0 14px rgba(255,59,59,0.4); }
+  
+  .led.zone-bass.active { background: #8b3bff; box-shadow: 0 0 8px rgba(139,59,255,0.8), 0 0 20px rgba(139,59,255,0.3); }
+  .led.zone-bass.aura { background: rgba(139,59,255,0.25); box-shadow: 0 0 14px rgba(139,59,255,0.4); }
+  
+  .led.zone-synth.active { background: #3b9bff; box-shadow: 0 0 8px rgba(59,155,255,0.8), 0 0 20px rgba(59,155,255,0.3); }
+  .led.zone-synth.aura { background: rgba(59,155,255,0.25); box-shadow: 0 0 14px rgba(59,155,255,0.4); }
+  
+  .led.zone-pad.active { background: #3bff9b; box-shadow: 0 0 8px rgba(59,255,155,0.8), 0 0 20px rgba(59,255,155,0.3); }
+  .led.zone-pad.aura { background: rgba(59,255,155,0.25); box-shadow: 0 0 14px rgba(59,255,155,0.4); }
+  
+  .led.zone-fx.active { background: #ff3b8b; box-shadow: 0 0 8px rgba(255,59,139,0.8), 0 0 20px rgba(255,59,139,0.3); }
+  .led.zone-fx.aura { background: rgba(255,59,139,0.25); box-shadow: 0 0 14px rgba(255,59,139,0.4); }
+  
+  .led.zone-atmo.active { background: #ffb33b; box-shadow: 0 0 8px rgba(255,179,59,0.8), 0 0 20px rgba(255,179,59,0.3); }
+  .led.zone-atmo.aura { background: rgba(255,179,59,0.25); box-shadow: 0 0 14px rgba(255,179,59,0.4); }
+
+  #controls-wrapper {
+    width: 100%;
+    padding: 4px 10px 12px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: linear-gradient(to top, #000 80%, transparent);
+  }
+  .ctrl-row { display: flex; justify-content: center; gap: 12px; }
+
+  .ctrl-btn {
+    background: #050505;
+    border: 1px solid #1a1a1a;
+    color: #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+    min-width: 45px;
+    text-align: center;
+  }
+  .ctrl-btn.active-ctrl {
+    border-color: #444;
+    color: #888;
+    background: #111;
+    text-shadow: 0 0 5px rgba(255,255,255,0.3);
+  }
+  .ctrl-btn[data-fx="echo"].active-ctrl { border-color: #00ffff; color: #00ffff; box-shadow: 0 0 10px rgba(0,255,255,0.3); }
+  .ctrl-btn[data-fx="reverb"].active-ctrl { border-color: #aa44ff; color: #aa44ff; box-shadow: 0 0 10px rgba(170,68,255,0.3); }
+  .ctrl-btn[data-fx="lfo"].active-ctrl { border-color: #ff4444; color: #ff4444; box-shadow: 0 0 10px rgba(255,68,68,0.3); }
+  .ctrl-btn[data-fx="resonance"].active-ctrl { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 10px rgba(255,170,0,0.3); }
+  .ctrl-btn[data-mode="loop"].active-ctrl { border-color: #3b9bff; color: #3b9bff; box-shadow: 0 0 12px rgba(59,155,255,0.4); }
+
+  #row-labels {
+    position: fixed; left: 8px; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 2px; pointer-events: none; opacity: 0.4;
+  }
+  .row-label {
+    height: calc((min(192vw, 88vh) - 38px) / 20);
+    max-height: calc((760px - 38px) / 20);
+    display: flex; align-items: center; color: #2a2a2a; font-size: 7px; letter-spacing: 1px; width: 24px; justify-content: flex-end; padding-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div id="start-overlay">
+  <div class="pulse"></div>
+  <h1>LED MATRIX 200</h1>
+  <p>TAP TO START</p>
+</div>
+
+<div id="header">
+  <span class="title">LED MATRIX 200</span>
+  <span class="mode-indicator" id="modeLabel">FREE PLAY</span>
+</div>
+
+<div id="matrix-container">
+  <div id="matrix"></div>
+</div>
+
+<div id="row-labels"></div>
+
+<div id="controls-wrapper">
+  <div class="ctrl-row">
+    <button class="ctrl-btn" id="btnFree">FREE</button>
+    <button class="ctrl-btn" id="btnSequence">SEQ</button>
+    <button class="ctrl-btn" id="btnSwipe">GLIDE</button>
+    <button class="ctrl-btn" id="btnLoop" data-mode="loop">LOOP</button>
+    <button class="ctrl-btn" id="btnClear">CLEAR</button>
+  </div>
+  <div class="ctrl-row">
+    <button class="ctrl-btn" id="btnEcho" data-fx="echo">ECHO</button>
+    <button class="ctrl-btn" id="btnReverb" data-fx="reverb">REVERB</button>
+    <button class="ctrl-btn" id="btnLfo" data-fx="lfo">LFO</button>
+    <button class="ctrl-btn" id="btnReso" data-fx="resonance">RESO</button>
+  </div>
+</div>
+
+<script>
+// ============ AUDIO ENGINE ============
+class AudioEngine {
+  constructor() {
+    this.ctx = null; this.masterGain = null; this.compressor = null;
+    this.initialized = false; this.bpm = 118;
+    this.globalFilter = null; this.delayNode = null; this.delayFeedback = null;
+    this.reverbNode = null; this.reverbGain = null; this.lfoNode = null; this.lfoGain = null;
+    this.fxActive = { echo: false, reverb: false, lfo: false, resonance: false };
+  }
+
+  init() {
+    if (this.initialized) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = 0.6;
+    this.compressor = this.ctx.createDynamicsCompressor();
+    this.compressor.threshold.value = -15; this.compressor.knee.value = 10;
+    this.compressor.ratio.value = 4; this.compressor.attack.value = 0.003; this.compressor.release.value = 0.1;
+
+    this.globalFilter = this.ctx.createBiquadFilter();
+    this.globalFilter.type = 'lowpass'; this.globalFilter.frequency.value = 8000; this.globalFilter.Q.value = 0.5;
+
+    this.delayNode = this.ctx.createDelay(2.0); this.delayNode.delayTime.value = 0.35;
+    this.delayFeedback = this.ctx.createGain(); this.delayFeedback.gain.value = 0;
+    this.delayNode.connect(this.delayFeedback); this.delayFeedback.connect(this.delayNode);
+
+    this.reverbNode = this.ctx.createConvolver();
+    this.reverbNode.buffer = this.createReverbImpulse();
+    this.reverbGain = this.ctx.createGain(); this.reverbGain.gain.value = 0;
+
+    this.lfoNode = this.ctx.createOscillator(); this.lfoNode.type = 'sine'; this.lfoNode.frequency.value = 3;
+    this.lfoGain = this.ctx.createGain(); this.lfoGain.gain.value = 0;
+    this.lfoNode.connect(this.lfoGain); this.lfoGain.connect(this.globalFilter.frequency);
+    this.lfoNode.start();
+
+    this.delayNode.connect(this.masterGain);
+    this.reverbNode.connect(this.reverbGain); this.reverbGain.connect(this.masterGain);
+    this.globalFilter.connect(this.masterGain);
+    this.globalFilter.connect(this.delayNode);
+    this.globalFilter.connect(this.reverbNode);
+    this.masterGain.connect(this.compressor);
+    this.compressor.connect(this.ctx.destination);
+    this.initialized = true;
+  }
+
+  createReverbImpulse() {
+    const sr = this.ctx.sampleRate; const len = sr * 2.5;
+    const buf = this.ctx.createBuffer(2, len, sr);
+    const l = buf.getChannelData(0); const r = buf.getChannelData(1);
+    for (let i = 0; i < len; i++) {
+      const n = len - i;
+      l[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+      r[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+    }
+    return buf;
+  }
+
+  toggleFX(type, active) {
+    if (!this.initialized) return;
+    if (type === 'echo') this.delayFeedback.gain.setTargetAtTime(active ? 0.5 : 0, this.ctx.currentTime, 0.1);
+    else if (type === 'reverb') this.reverbGain.gain.setTargetAtTime(active ? 0.6 : 0, this.ctx.currentTime, 0.1);
+    else if (type === 'lfo') this.lfoGain.gain.setTargetAtTime(active ? 4000 : 0, this.ctx.currentTime, 0.1);
+    else if (type === 'resonance') {
+      this.globalFilter.Q.setTargetAtTime(active ? 15 : 0.5, this.ctx.currentTime, 0.1);
+      this.globalFilter.frequency.setTargetAtTime(active ? 1200 : 8000, this.ctx.currentTime, 0.1);
+    }
+  }
+
+  connectToOutput(node) { node.connect(this.globalFilter); }
+
+  playKick(v) {
+    if(!this.initialized) return; const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    const ton=[85,70,95,60,110,78,105,65,88,92][v%10];
+    o.frequency.setValueAtTime(ton*1.6,t); o.frequency.exponentialRampToValueAtTime(ton*0.25,t+0.18);
+    g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.45);
+    o.connect(g); this.connectToOutput(g); o.start(t); o.stop(t+0.45);
+  }
+  playSnare(v) {
+    if(!this.initialized) return; const t=this.ctx.currentTime, len=0.12+v*0.04;
+    const buf=this.ctx.createBuffer(1,this.ctx.sampleRate*len,this.ctx.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const n=this.ctx.createBufferSource(); n.buffer=buf;
+    const hp=this.ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1200+v*400;
+    const ng=this.ctx.createGain(); ng.gain.setValueAtTime(0.7,t); ng.gain.exponentialRampToValueAtTime(0.001,t+len);
+    n.connect(hp); hp.connect(ng); this.connectToOutput(ng); n.start(t); n.stop(t+len);
+    const o=this.ctx.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(90,t+0.06);
+    const og=this.ctx.createGain(); og.gain.setValueAtTime(0.45,t); og.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+    o.connect(og); this.connectToOutput(og); o.start(t); o.stop(t+0.12);
+  }
+  playHihat(v) {
+    if(!this.initialized) return; const t=this.ctx.currentTime, len=v<3?0.04:0.18, vol=v<3?0.35:0.55;
+    const buf=this.ctx.createBuffer(1,this.ctx.sampleRate*len,this.ctx.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const n=this.ctx.createBufferSource(); n.buffer=buf;
+    const hp=this.ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=6500+v*600;
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+len);
+    n.connect(hp); hp.connect(g); this.connectToOutput(g); n.start(t); n.stop(t+len);
+  }
+  playPerc(v) {
+    if(!this.initialized) return; const t=this.ctx.currentTime;
+    const fqs=[280,350,420,510,620,750,900,1100,1400,1800]; const f=fqs[v%10];
+    const o=this.ctx.createOscillator(); o.type=v%2===0?'sine':'triangle';
+    o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*0.6,t+0.06);
+    const fl=this.ctx.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=4000;
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
+    o.connect(fl); fl.connect(g); this.connectToOutput(g); o.start(t); o.stop(t+0.09);
+  }
+  playBass(ro, c) {
+    if(!this.initialized) return; const t=this.ctx.currentTime;
+    const bf=41.2, semi=100*Math.log2(1+c/12), f=bf*Math.pow(2,ro+semi/100);
+    const o1=this.ctx.createOscillator(); o1.type='sawtooth'; o1.frequency.value=f;
+    const o2=this.ctx.createOscillator(); o2.type='square'; o2.frequency.value=f*1.004;
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(0.32,t); g.gain.setValueAtTime(0.32,t+0.08); g.gain.exponentialRampToValueAtTime(0.001,t+0.7);
+    o1.connect(g); o2.connect(g); this.connectToOutput(g);
+    o1.start(t); o2.start(t); o1.stop(t+0.7); o2.stop(t+0.7);
+  }
+  playLead(ro, c) {
+    if(!this.initialized) return; const t=this.ctx.currentTime;
+    const bf=220, semi=c*1.2, f=bf*Math.pow(2,ro+semi/12);
+    const o1=this.ctx.createOscillator(); o1.type='sawtooth'; o1.frequency.value=f;
+    const o2=this.ctx.createOscillator(); o2.type='sawtooth'; o2.frequency.value=f*1.008;
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.22,t+0.015);
+    g.gain.setValueAtTime(0.22,t+0.08); g.gain.exponentialRampToValueAtTime(0.001,t+0.6);
+    const v=this.ctx.createOscillator(), vg=this.ctx.createGain(); v.frequency.value=4.5; vg.gain.value=2.5;
+    v.connect(vg); vg.connect(o1.frequency);
+    o1.connect(g); o2.connect(g); this.connectToOutput(g);
+    o1.start(t); o2.start(t); v.start(t); o1.stop(t+0.6); o2.stop(t+0.6); v.stop(t+0.6);
+  }
+  playPad(ro, c) {
+    if(!this.initialized) return; const t=this.ctx.currentTime;
+    const bf=110, f=bf*Math.pow(2,ro+c*0.8/12);
+    [0,1,2,3].forEach(i=>{
+      const o=this.ctx.createOscillator(); o.type=i<2?'sine':'triangle'; o.frequency.value=f*(1+i*0.0025);
+      const g=this.ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.09,t+0.12);
+      g.gain.setValueAtTime(0.09,t+0.4); g.gain.exponentialRampToValueAtTime(0.001,t+2.5);
+      o.connect(g); this.connectToOutput(g); o.start(t); o.stop(t+2.5);
+    });
+  }
+  playFX(c) {
+    if(!this.initialized) return; const t=this.ctx.currentTime;
+    if(c===0){const o=this.ctx.createOscillator();o.type='sine';o.frequency.setValueAtTime(180,t);o.frequency.exponentialRampToValueAtTime(1800,t+0.4);const g=this.ctx.createGain();g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.4);o.connect(g);this.connectToOutput(g);o.start(t);o.stop(t+0.4);}
+    else if(c===1){const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(2800,t);o.frequency.exponentialRampToValueAtTime(120,t+0.25);const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=4;const g=this.ctx.createGain();g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.25);o.connect(f);f.connect(g);this.connectToOutput(g);o.start(t);o.stop(t+0.25);}
+    else if(c===2){const bs=this.ctx.sampleRate;const buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<bs;i++)d[i]=Math.random()*2-1;const n=this.ctx.createBufferSource();n.buffer=buf;const f=this.ctx.createBiquadFilter();f.type='highpass';f.frequency.value=3500;const g=this.ctx.createGain();g.gain.setValueAtTime(0.25,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.8);n.connect(f);f.connect(g);this.connectToOutput(g);n.start(t);n.stop(t+0.8);}
+    else if(c===3){const o=this.ctx.createOscillator();o.type='sine';o.frequency.setValueAtTime(55,t);o.frequency.exponentialRampToValueAtTime(28,t+0.7);const g=this.ctx.createGain();g.gain.setValueAtTime(0.45,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.7);o.connect(g);this.connectToOutput(g);o.start(t);o.stop(t+0.7);}
+    else if(c===4){for(let i=0;i<6;i++){const st=t+i*0.05;const o=this.ctx.createOscillator();o.type='square';o.frequency.value=400+c*40;const g=this.ctx.createGain();g.gain.setValueAtTime(0.12,st);g.gain.setValueAtTime(0,st+0.025);o.connect(g);this.connectToOutput(g);o.start(st);o.stop(st+0.035);}}
+    else if(c===5){const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.value=140;const l=this.ctx.createOscillator();l.frequency.value=7;const lg=this.ctx.createGain();lg.gain.value=400;const f=this.ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=700;l.connect(lg);lg.connect(f.frequency);const g=this.ctx.createGain();g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);o.connect(f);f.connect(g);this.connectToOutput(g);o.start(t);l.start(t);o.stop(t+0.5);l.stop(t+0.5);}
+    else{const bs=this.ctx.sampleRate*0.3;const buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<bs;i++)d[i]=Math.random()*2-1;const n=this.ctx.createBufferSource();n.buffer=buf;const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=4000;f.Q.value=3;const g=this.ctx.createGain();g.gain.setValueAtTime(0.3,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.3);n.connect(f);f.connect(g);this.connectToOutput(g);n.start(t);n.stop(t+0.3);}
+  }
+  playAtmo(c) {
+    if(!this.initialized) return; const t=this.ctx.currentTime, freq=60+c*35;
+    const bs=this.ctx.sampleRate*3; const buf=this.ctx.createBuffer(1,bs,this.ctx.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<bs;i++) d[i]=Math.random()*2-1;
+    const n=this.ctx.createBufferSource(); n.buffer=buf;
+    const f=this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(freq,t);
+    f.frequency.linearRampToValueAtTime(freq*1.5,t+1.5); f.Q.value=12;
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.12,t+0.4);
+    g.gain.exponentialRampToValueAtTime(0.001,t+2.5);
+    n.connect(f); f.connect(g); this.connectToOutput(g); n.start(t); n.stop(t+2.5);
+  }
+
+  play(row, col) {
+    const zone = this.getZone(row), relRow = row - this.getZoneStart(row);
+    switch(zone) {
+      case 'drums-kick': this.playKick(col); break; case 'drums-snare': this.playSnare(col); break;
+      case 'drums-hihat': this.playHihat(col); break; case 'drums-perc': this.playPerc(col); break;
+      case 'bass': this.playBass(relRow, col); break; case 'lead': this.playLead(relRow, col); break;
+      case 'pad': this.playPad(relRow, col); break; case 'fx': this.playFX(col); break;
+      case 'atmo': this.playAtmo(col); break;
+    }
+  }
+  getZoneStart(r){if(r<=2)return 0;if(r<=4)return 3;if(r<=6)return 5;if(r<=8)return 7;if(r<=12)return 9;if(r<=15)return 13;if(r<=17)return 16;if(r===18)return 18;return 19;}
+  getZone(r){if(r<=2)return'drums-kick';if(r<=4)return'drums-snare';if(r<=6)return'drums-hihat';if(r<=8)return'drums-perc';if(r<=12)return'bass';if(r<=15)return'lead';if(r<=17)return'pad';if(r===18)return'fx';return'atmo';}
+  getZoneClass(r){if(r<=8)return'zone-drums';if(r<=12)return'zone-bass';if(r<=15)return'zone-synth';if(r<=17)return'zone-pad';if(r===18)return'zone-fx';return'zone-atmo';}
+  getZoneLabel(r){if(r===0)return'KICK';if(r===1)return'K2';if(r===2)return'K3';if(r===3)return'SNR';if(r===4)return'CLP';if(r===5)return'HH';if(r===6)return'OH';if(r===7)return'PNC';if(r===8)return'RDE';if(r>=9&&r<=12)return'BASS';if(r>=13&&r<=15)return'LEAD';if(r>=16&&r<=17)return'PAD';if(r===18)return'FX';if(r===19)return'DRN';return'';}
+}
+
+// ============ APP ============
+const audio = new AudioEngine();
+const matrixEl = document.getElementById('matrix');
+const rowLabelsEl = document.getElementById('row-labels');
+const leds = [];
+const activeSet = new Set();
+let mode = 'free';
+let seqInterval = null;
+
+const activeTouches = new Map();
+let loopState = { active: false, recording: false, startTime: 0, duration: 4000, events: [], playbackTimer: null };
+
+// Build Matrix
+for (let row = 0; row < 20; row++) {
+  const label = document.createElement('div'); label.className = 'row-label'; label.textContent = audio.getZoneLabel(row); rowLabelsEl.appendChild(label);
+  for (let col = 0; col < 10; col++) {
+    const led = document.createElement('div'); led.className = `led ${audio.getZoneClass(row)}`;
+    led.dataset.row = row; led.dataset.col = col; led.dataset.index = row * 10 + col;
+    matrixEl.appendChild(led); leds.push(led);
+  }
+}
+
+// Visual Activation with Aura & Gradient Fade
+function activateLed(row, col, duration = 450) {
+  const index = row * 10 + col;
+  const led = leds[index];
+  audio.play(row, col);
+
+  // Main LED activation
+  led.classList.remove('aura'); // Clear aura if present
+  led.classList.add('active');
+  setTimeout(() => led.classList.remove('active'), duration * 0.5);
+
+  // Neighbor Aura (Radius 1)
+  const neighbors = getNeighbors(row, col);
+  neighbors.forEach((nIdx, i) => {
+    const nLed = leds[nIdx];
+    if (!nLed.classList.contains('active')) {
+      nLed.classList.add('aura');
+      // Staggered fade out for wave-like gradient effect
+      const delay = duration * 0.3 + (i * 15);
+      setTimeout(() => nLed.classList.remove('aura'), delay);
+    }
+  });
+}
+
+function getNeighbors(row, col) {
+  const result = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = row + dr, nc = col + dc;
+      if (nr >= 0 && nr < 20 && nc >= 0 && nc < 10) {
+        result.push(nr * 10 + nc);
+      }
+    }
+  }
+  return result;
+}
+
+function handleTap(row, col, touchId = null) {
+  const index = row * 10 + col;
+  if (loopState.active) {
+    recordEvent(row, col);
+    activateLed(row, col, 300);
+  } else if (mode === 'free') {
+    activateLed(row, col);
+  } else if (mode === 'sequence') {
+    if (activeSet.has(index)) {
+      activeSet.delete(index); leds[index].classList.remove('active');
+    } else {
+      activeSet.add(index); leds[index].classList.add('active');
+      activateLed(row, col, 350);
+      setTimeout(() => leds[index].classList.remove('active'), 350);
+    }
+  } else if (mode === 'glide') {
+    activateLed(row, col, 250);
+  }
+}
+
+function recordEvent(row, col) {
+  if (!loopState.recording) return;
+  const time = Date.now() - loopState.startTime;
+  if (time <= loopState.duration) loopState.events.push({ time, row, col });
+}
+
+// Multi-touch Handlers
+matrixEl.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  for (let touch of e.changedTouches) {
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const led = el?.closest('.led');
+    if (led) {
+      const r = parseInt(led.dataset.row); const c = parseInt(led.dataset.col);
+      handleTap(r, c, touch.identifier);
+      activeTouches.set(touch.identifier, { r, c, idx: r*10+c });
+    }
+  }
+}, { passive: false });
+
+matrixEl.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  for (let touch of e.changedTouches) {
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const led = el?.closest('.led');
+    if (led) {
+      const r = parseInt(led.dataset.row); const c = parseInt(led.dataset.col); const idx = r*10+c;
+      const prev = activeTouches.get(touch.identifier);
+      if (!prev || idx !== prev.idx) {
+        handleTap(r, c, touch.identifier);
+        activeTouches.set(touch.identifier, { r, c, idx });
+      }
+    }
+  }
+}, { passive: false });
+
+matrixEl.addEventListener('touchend', (e) => {
+  for (let touch of e.changedTouches) activeTouches.delete(touch.identifier);
+});
+
+// Mouse fallback
+let isMouseDown = false;
+matrixEl.addEventListener('mousedown', (e) => { isMouseDown = true; const led = e.target.closest('.led'); if(led) handleTap(parseInt(led.dataset.row), parseInt(led.dataset.col)); });
+matrixEl.addEventListener('mouseover', (e) => { if(!isMouseDown) return; const led = e.target.closest('.led'); if(led) handleTap(parseInt(led.dataset.row), parseInt(led.dataset.col)); });
+window.addEventListener('mouseup', () => isMouseDown = false);
+
+// Controls
+document.getElementById('btnFree').addEventListener('click', () => setMode('free'));
+document.getElementById('btnSequence').addEventListener('click', () => setMode('sequence'));
+document.getElementById('btnSwipe').addEventListener('click', () => setMode('glide'));
+document.getElementById('btnClear').addEventListener('click', clearPattern);
+document.getElementById('btnLoop').addEventListener('click', toggleLoop);
+
+document.getElementById('btnEcho').addEventListener('click', (e) => toggleFX('echo', e.currentTarget));
+document.getElementById('btnReverb').addEventListener('click', (e) => toggleFX('reverb', e.currentTarget));
+document.getElementById('btnLfo').addEventListener('click', (e) => toggleFX('lfo', e.currentTarget));
+document.getElementById('btnReso').addEventListener('click', (e) => toggleFX('resonance', e.currentTarget));
+
+function toggleFX(type, btn) {
+  const isActive = btn.classList.toggle('active-ctrl');
+  audio.toggleFX(type, isActive);
+}
+
+function setMode(m) {
+  mode = m;
+  const label = document.getElementById('modeLabel');
+  if (loopState.active) {
+    label.textContent = loopState.recording ? '● REC' : '▶ LOOP';
+    label.className = loopState.recording ? 'rec' : 'loop';
+    return;
+  }
+  label.textContent = m === 'free' ? 'FREE PLAY' : m === 'sequence' ? 'SEQUENCER' : 'GLIDE';
+  label.className = '';
+  
+  document.querySelectorAll('#btnFree, #btnSequence, #btnSwipe').forEach(b => b.classList.remove('active-ctrl'));
+  if (m === 'free') document.getElementById('btnFree').classList.add('active-ctrl');
+  if (m === 'sequence') { document.getElementById('btnSequence').classList.add('active-ctrl'); startSequence(); }
+  if (m === 'glide') document.getElementById('btnSwipe').classList.add('active-ctrl');
+}
+
+function toggleLoop() {
+  const btn = document.getElementById('btnLoop');
+  if (!loopState.active) {
+    loopState.active = true; loopState.recording = true;
+    loopState.startTime = Date.now(); loopState.events = [];
+    if (loopState.playbackTimer) clearTimeout(loopState.playbackTimer);
+    btn.classList.add('active-ctrl');
+    setMode(mode);
+    setTimeout(stopRecording, loopState.duration);
+  } else {
+    loopState.active = false; loopState.recording = false; loopState.events = [];
+    if (loopState.playbackTimer) clearTimeout(loopState.playbackTimer);
+    btn.classList.remove('active-ctrl');
+    setMode(mode);
+  }
+}
+
+function stopRecording() {
+  loopState.recording = false;
+  loopState.events.sort((a,b) => a.time - b.time);
+  setMode(mode);
+  playLoop();
+}
+
+function playLoop() {
+  if (!loopState.active) return;
+  const now = Date.now();
+  const elapsed = (now - loopState.startTime) % loopState.duration;
+  const phase = elapsed;
+  loopState.events.forEach(ev => {
+    if (ev.time > phase) {
+      setTimeout(() => {
+        audio.play(ev.row, ev.col);
+        activateLed(ev.row, ev.col, 300);
+      }, ev.time - phase);
+    }
+  });
+  const timeToNext = loopState.duration - phase;
+  loopState.playbackTimer = setTimeout(() => {
+    if (loopState.active) playLoop();
+  }, timeToNext);
+}
+
+function startSequence() {
+  stopSequence();
+  const interval = 60000 / audio.bpm / 4;
+  seqInterval = setInterval(() => {
+    activeSet.forEach(index => {
+      const row = Math.floor(index / 10); const col = index % 10;
+      const led = leds[index]; led.classList.add('active');
+      audio.play(row, col);
+      activateLed(row, col, 250);
+      setTimeout(() => led.classList.remove('active'), 90);
+    });
+  }, interval);
+}
+function stopSequence() { if (seqInterval) { clearInterval(seqInterval); seqInterval = null; } }
+
+function clearPattern() {
+  activeSet.clear();
+  leds.forEach(l => { l.classList.remove('active', 'aura'); l.style.background = ''; l.style.boxShadow = ''; });
+  stopSequence();
+  if (loopState.active) toggleLoop();
+}
+
+// Start Overlay
+document.getElementById('start-overlay').addEventListener('click', () => {
+  audio.init();
+  const overlay = document.getElementById('start-overlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.style.display = 'none', 500);
+});
+document.getElementById('start-overlay').addEventListener('touchstart', (e) => {
+  e.preventDefault(); audio.init();
+  const overlay = document.getElementById('start-overlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.style.display = 'none', 500);
+}, { passive: false });
+
+// Ambient pulse
+setInterval(() => {
+  const r = Math.floor(Math.random() * 20); const c = Math.floor(Math.random() * 10);
+  const led = leds[r * 10 + c]; led.style.opacity = '0.25';
+  setTimeout(() => led.style.opacity = '1', 120);
+}, 1800);
+</script>
+</body>
+</html>

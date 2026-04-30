@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>LED DRUM</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: #000;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', Courier, monospace;
+    color: #555;
+    overflow: hidden;
+    user-select: none;
+    touch-action: none;
+  }
+
+  #header {
+    font-size: 9px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #333;
+    margin-bottom: 18px;
+  }
+
+  #grid-wrap {
+    position: relative;
+    cursor: crosshair;
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 5px;
+    padding: 14px;
+    background: #050505;
+    border: 1px solid #111;
+    border-radius: 6px;
+  }
+
+  .led {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #0f0800;
+    position: relative;
+    transition: background 0.04s, box-shadow 0.04s;
+  }
+
+  .led.seq-on { background: #1a0f00; }
+
+  .led.beat-k { background: #ff6600; box-shadow: 0 0 7px #ff4400, 0 0 14px #ff220033; }
+  .led.beat-s { background: #ffcc00; box-shadow: 0 0 7px #ffaa00, 0 0 14px #ff880033; }
+  .led.beat-h { background: #ff9900; box-shadow: 0 0 4px #ff8800; }
+  .led.beat-b { background: #00ddff; box-shadow: 0 0 7px #00bbff, 0 0 14px #0088ff33; }
+  .led.beat-p { background: #aa44ff; box-shadow: 0 0 6px #8833ff; }
+
+  .led.touch-glow {
+    background: #00ccff;
+    box-shadow: 0 0 10px #00aaff, 0 0 20px #0066ff55;
+  }
+
+  .led.ripple {
+    animation: ripple-anim 0.35s ease-out forwards;
+  }
+
+  @keyframes ripple-anim {
+    0%   { background: #00ddff; box-shadow: 0 0 14px #00aaff; }
+    100% { background: #0f0800; box-shadow: none; }
+  }
+
+  #status {
+    margin-top: 18px;
+    display: flex;
+    gap: 24px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #333;
+  }
+
+  #bpm-val { color: #ff6600; }
+  #tone-val { color: #00aaff; }
+
+  #start-hint {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.85);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #444;
+    text-transform: uppercase;
+    transition: opacity 0.4s;
+    z-index: 10;
+  }
+
+  #start-hint.hidden { opacity: 0; pointer-events: none; }
+
+  #footer {
+    margin-top: 14px;
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: #222;
+    text-align: center;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">LED DRUM 100</div>
+
+<div id="grid-wrap">
+  <div id="grid"></div>
+  <div id="start-hint">tap to start</div>
+</div>
+
+<div id="status">
+  <span>BPM <span id="bpm-val">—</span></span>
+  <span>TONE <span id="tone-val">—</span></span>
+</div>
+
+<div id="footer">
+  x axis → tone / density &nbsp;|&nbsp; y axis → tempo / chaos
+</div>
+
+<script>
+const N = 10;
+const TOTAL = 100;
+const grid = document.getElementById('grid');
+const hint = document.getElementById('start-hint');
+const bpmVal = document.getElementById('bpm-val');
+const toneVal = document.getElementById('tone-val');
+
+const leds = [];
+for (let i = 0; i < TOTAL; i++) {
+  const d = document.createElement('div');
+  d.className = 'led';
+  grid.appendChild(d);
+  leds.push(d);
+}
+
+let ctx = null;
+let noiseBuffer = null;
+let started = false;
+let step = 0;
+let nextStepTime = 0;
+let schedulerTimer = null;
+
+let touchX = 0.5;
+let touchY = 0.5;
+let bpm = 120;
+let filterCutoff = 800;
+let density = 0.5;
+let chaos = 0.3;
+let isDown = false;
+
+const bassNotes = [55, 55, 69, 73, 55, 55, 62, 65];
+const padNotes  = [220, 277, 330, 220, 233, 293, 349, 233];
+
+function makeNoise(ctx) {
+  const frames = ctx.sampleRate * 2;
+  const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < frames; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function playKick(t) {
+  const osc = ctx.createOscillator();
+  const g   = ctx.createGain();
+  const dist = ctx.createWaveShaper();
+  const curve = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const x = (i * 2) / 256 - 1;
+    curve[i] = (Math.PI + 200) * x / (Math.PI + 200 * Math.abs(x));
+  }
+  dist.curve = curve;
+  osc.frequency.setValueAtTime(160, t);
+  osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.38);
+  g.gain.setValueAtTime(1.4, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+  osc.connect(dist); dist.connect(g); g.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.4);
+  lightBeat(0, 'beat-k');
+}
+
+function playSnare(t) {
+  const n  = ctx.createBufferSource();
+  n.buffer = noiseBuffer;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 2000; bp.Q.value = 0.5;
+  const osc = ctx.createOscillator();
+  osc.frequency.value = 180;
+  const g1 = ctx.createGain();
+  const g2 = ctx.createGain();
+  g1.gain.setValueAtTime(0.9, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+  g2.gain.setValueAtTime(0.5, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  n.connect(bp); bp.connect(g1); g1.connect(ctx.destination);
+  osc.connect(g2); g2.connect(ctx.destination);
+  n.start(t); n.stop(t + 0.2);
+  osc.start(t); osc.stop(t + 0.12);
+  lightBeat(40, 'beat-s');
+}
+
+function playHihat(t, open) {
+  const n  = ctx.createBufferSource();
+  n.buffer = noiseBuffer;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 9000;
+  const g  = ctx.createGain();
+  const decay = open ? 0.22 : 0.055;
+  g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + decay);
+  n.connect(hp); hp.connect(g); g.connect(ctx.destination);
+  n.start(t); n.stop(t + decay + 0.01);
+  lightBeat(80, 'beat-h');
+}
+
+function playBass(t, freq) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth'; osc.frequency.value = freq;
+  const lp  = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  const cut = filterCutoff * (0.4 + touchX * 1.6);
+  lp.frequency.setValueAtTime(cut, t);
+  lp.frequency.exponentialRampToValueAtTime(cut * 0.15, t + 0.25);
+  lp.Q.value = 6 + touchX * 10;
+  const g   = ctx.createGain();
+  g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+  osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.35);
+  lightBeat(20, 'beat-b');
+}
+
+function playPad(t, freq) {
+  const voices = 3;
+  const detunes = [-8, 0, 8];
+  const master = ctx.createGain();
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = filterCutoff * (0.3 + touchX * 2);
+  lp.Q.value = 1.5;
+  master.gain.setValueAtTime(0.22, t);
+  master.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+  master.connect(lp); lp.connect(ctx.destination);
+  for (let i = 0; i < voices; i++) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    osc.detune.value = detunes[i];
+    osc.connect(master);
+    osc.start(t); osc.stop(t + 0.75);
+  }
+  lightBeat(60, 'beat-p');
+}
+
+function lightBeat(base, cls) {
+  const offset = Math.floor(Math.random() * 10);
+  const idx = base + offset;
+  if (idx < TOTAL) {
+    leds[idx].classList.remove('seq-on', 'beat-k', 'beat-s', 'beat-h', 'beat-b', 'beat-p');
+    leds[idx].classList.add(cls);
+    setTimeout(() => {
+      if (!leds[idx].classList.contains('touch-glow')) {
+        leds[idx].classList.remove(cls);
+      }
+    }, 130);
+  }
+}
+
+const patterns = {
+  kick:  [1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0],
+  snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+  hihat: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+  bass:  [1,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0],
+  pad:   [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
+};
+
+function getPattern(name) {
+  const base = patterns[name];
+  const dMod = density + chaos * (Math.random() - 0.5) * 2;
+  return base.map((v, i) => {
+    if (v) return Math.random() > chaos * 0.4 ? 1 : 0;
+    if (name === 'hihat') return Math.random() < dMod * 0.4 ? 1 : 0;
+    if (name === 'bass')  return Math.random() < dMod * 0.25 ? 1 : 0;
+    return 0;
+  });
+}
+
+let cachedPatterns = null;
+let patternGenAt = -1;
+
+function schedule() {
+  const lookahead = 0.12;
+  const scheduleInterval = 0.06;
+
+  while (nextStepTime < ctx.currentTime + lookahead) {
+    if (step === 0) {
+      cachedPatterns = {
+        kick:  getPattern('kick'),
+        snare: getPattern('snare'),
+        hihat: getPattern('hihat'),
+        bass:  getPattern('bass'),
+        pad:   getPattern('pad'),
+      };
+    }
+
+    const t = nextStepTime;
+    const s = step;
+    const bi = Math.floor(s / (16 / N));
+    for (let row = 0; row < N; row++) {
+      const li = row * N + bi;
+      setTimeout(() => {
+        leds.forEach(l => l.classList.remove('seq-on'));
+        for (let r = 0; r < N; r++) leds[r * N + bi].classList.add('seq-on');
+      }, Math.max(0, (t - ctx.currentTime) * 1000 - 10));
+    }
+
+    if (cachedPatterns.kick[s])  playKick(t);
+    if (cachedPatterns.snare[s]) playSnare(t);
+    if (cachedPatterns.hihat[s]) playHihat(t, s % 4 === 2 && Math.random() < 0.15);
+    if (cachedPatterns.bass[s])  playBass(t, bassNotes[s % bassNotes.length]);
+    if (cachedPatterns.pad[s])   playPad(t, padNotes[s % padNotes.length]);
+
+    const secondsPerBeat = 60 / bpm;
+    const secondsPerStep = secondsPerBeat / 4;
+    nextStepTime += secondsPerStep;
+    step = (step + 1) % 16;
+  }
+
+  schedulerTimer = setTimeout(schedule, scheduleInterval * 1000);
+}
+
+function start() {
+  if (started) return;
+  started = true;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  noiseBuffer = makeNoise(ctx);
+  nextStepTime = ctx.currentTime + 0.05;
+  schedule();
+  hint.classList.add('hidden');
+}
+
+function updateFromTouch(rx, ry) {
+  touchX = Math.max(0, Math.min(1, rx));
+  touchY = Math.max(0, Math.min(1, ry));
+  bpm      = Math.round(80 + touchY * 80);
+  filterCutoff = 300 + touchX * 3500;
+  density  = 0.3 + touchX * 0.6;
+  chaos    = 0.1 + touchY * 0.5;
+  bpmVal.textContent = bpm;
+  const tones = ['dark', 'warm', 'mid', 'bright', 'acid'];
+  toneVal.textContent = tones[Math.floor(touchX * 4.99)];
+}
+
+function getRippleNeighbors(idx, radius) {
+  const r = Math.floor(idx / N), c = idx % N;
+  const result = [];
+  for (let dr = -radius; dr <= radius; dr++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      const dist = Math.sqrt(dr*dr + dc*dc);
+      if (dist <= radius && dist > radius - 1.5) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < N && nc >= 0 && nc < N) {
+          result.push({ idx: nr * N + nc, delay: dist * 40 });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function rippleFrom(idx) {
+  for (let r = 0; r <= 4; r++) {
+    getRippleNeighbors(idx, r).forEach(({ idx: ni, delay }) => {
+      setTimeout(() => {
+        if (!leds[ni].classList.contains('touch-glow')) {
+          leds[ni].classList.remove('ripple');
+          void leds[ni].offsetWidth;
+          leds[ni].classList.add('ripple');
+          setTimeout(() => leds[ni].classList.remove('ripple'), 380);
+        }
+      }, delay + r * 30);
+    });
+  }
+}
+
+function getGridCoords(e) {
+  const wrap = document.getElementById('grid');
+  const rect = wrap.getBoundingClientRect();
+  let cx, cy;
+  if (e.touches) {
+    cx = e.touches[0].clientX;
+    cy = e.touches[0].clientY;
+  } else {
+    cx = e.clientX;
+    cy = e.clientY;
+  }
+  const rx = (cx - rect.left) / rect.width;
+  const ry = (cy - rect.top)  / rect.height;
+  return { rx, ry, cx, cy };
+}
+
+function getNearestLedIdx(cx, cy) {
+  let best = 0, bestDist = Infinity;
+  leds.forEach((l, i) => {
+    const r = l.getBoundingClientRect();
+    const dx = cx - (r.left + r.width / 2);
+    const dy = cy - (r.top  + r.height / 2);
+    const d = dx*dx + dy*dy;
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return best;
+}
+
+let lastTouchLed = -1;
+
+function onDown(e) {
+  e.preventDefault();
+  start();
+  isDown = true;
+  const { rx, ry, cx, cy } = getGridCoords(e);
+  updateFromTouch(rx, ry);
+  const idx = getNearestLedIdx(cx, cy);
+  if (idx !== lastTouchLed) {
+    if (lastTouchLed >= 0) leds[lastTouchLed].classList.remove('touch-glow');
+    leds[idx].classList.add('touch-glow');
+    lastTouchLed = idx;
+    rippleFrom(idx);
+  }
+}
+
+function onMove(e) {
+  e.preventDefault();
+  if (!isDown) return;
+  const { rx, ry, cx, cy } = getGridCoords(e);
+  updateFromTouch(rx, ry);
+  const idx = getNearestLedIdx(cx, cy);
+  if (idx !== lastTouchLed) {
+    if (lastTouchLed >= 0) leds[lastTouchLed].classList.remove('touch-glow');
+    leds[idx].classList.add('touch-glow');
+    lastTouchLed = idx;
+    rippleFrom(idx);
+  }
+}
+
+function onUp(e) {
+  isDown = false;
+  if (lastTouchLed >= 0) {
+    setTimeout(() => {
+      leds[lastTouchLed].classList.remove('touch-glow');
+      lastTouchLed = -1;
+    }, 200);
+  }
+}
+
+const wrap = document.getElementById('grid-wrap');
+wrap.addEventListener('touchstart',  onDown, { passive: false });
+wrap.addEventListener('touchmove',   onMove, { passive: false });
+wrap.addEventListener('touchend',    onUp,   { passive: false });
+wrap.addEventListener('mousedown',   onDown);
+wrap.addEventListener('mousemove',   onMove);
+wrap.addEventListener('mouseup',     onUp);
+wrap.addEventListener('mouseleave',  onUp);
+</script>
+</body>
+</html>

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>LED 200</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: #000;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Courier New', Courier, monospace;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+#header {
+  font-size: 8px;
+  letter-spacing: 7px;
+  color: #111;
+  text-transform: uppercase;
+  padding: 9px 0 5px;
+  flex-shrink: 0;
+}
+
+#grid-wrap {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  padding: 0 10px;
+  min-height: 0;
+}
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  gap: 2px;
+  flex: 1;
+  max-width: 420px;
+  background: #040404;
+  border-radius: 8px;
+  padding: 7px;
+  cursor: crosshair;
+  border: 1px solid #0c0c0c;
+  position: relative;
+}
+
+.led {
+  border-radius: 3px;
+  background: #080808;
+  position: relative;
+}
+
+/* Very subtle zone tints */
+.z0 { background: #0a0810; }
+.z1 { background: #050a0d; }
+.z2 { background: #0d0804; }
+.z3 { background: #0d0b04; }
+.z4 { background: #060d08; }
+.z5 { background: #060d06; }
+.z6 { background: #0d0504; }
+
+#footer {
+  display: flex;
+  gap: 18px;
+  padding: 7px 0 6px;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: #111;
+  flex-shrink: 0;
+}
+.fv { color: #252525; }
+
+/* Zone label strip - right edge */
+#zone-labels {
+  position: absolute;
+  right: -22px;
+  top: 7px;
+  bottom: 7px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.zlabel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 6px;
+  letter-spacing: 1px;
+  writing-mode: vertical-rl;
+  color: #111;
+  text-transform: uppercase;
+  justify-content: center;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 50;
+  transition: opacity 0.9s ease-out;
+}
+#overlay.hide { opacity: 0; pointer-events: none; }
+.ot1 { font-size: 9px; letter-spacing: 10px; color: #161616; text-transform: uppercase; }
+.ot2 { font-size: 26px; letter-spacing: 2px; color: #1e1e1e; }
+.ot3 { font-size: 7px; letter-spacing: 3px; color: #111; text-transform: uppercase; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div id="header">LED 200</div>
+<div id="grid-wrap" style="position:relative">
+  <div id="grid"></div>
+</div>
+<div id="footer">
+  <span>BPM <span class="fv" id="s-bpm">—</span></span>
+  <span>ECH <span class="fv" id="s-ech">—</span></span>
+  <span>REV <span class="fv" id="s-rev">—</span></span>
+  <span>LFO <span class="fv" id="s-lfo">—</span></span>
+  <span>GHO <span class="fv" id="s-gho">—</span></span>
+</div>
+<div id="overlay">
+  <div class="ot1">LED 200</div>
+  <div class="ot2">tap to play</div>
+  <div class="ot3">tap・loop・swipe・layer</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════════════
+const COLS = 10, ROWS = 20, TOTAL = 200;
+const BPM = 120;
+const BAR_MS = (60000 / BPM) * 4; // 2000ms @ 120bpm
+const MAX_GHOSTS = 12;
+const GHOST_REPEATS = 5;
+const DECAY = 0.905; // brightness decay per frame (~60fps)
+const GLOW_RADIUS = 2.8;
+
+// Zones: [startRow, endRow inclusive, name, color [r,g,b]]
+const ZONES = [
+  { s:  0, e:  2, name: 'PAD',   c: [140,  50, 255] },
+  { s:  3, e:  5, name: 'LEAD',  c: [  0, 210, 255] },
+  { s:  6, e:  8, name: 'BASS',  c: [255, 110,   0] },
+  { s:  9, e: 11, name: 'CLAP',  c: [255, 210,   0] },
+  { s: 12, e: 14, name: 'HAT',   c: [190, 255, 210] },
+  { s: 15, e: 17, name: 'TOM',   c: [  0, 255, 110] },
+  { s: 18, e: 19, name: 'KICK',  c: [255,  40,  40] },
+];
+
+// Pentatonic Am: A C D E G (two octaves across 10 columns)
+const NOTE_PAD  = [220, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99];
+const NOTE_LEAD = [110, 130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00];
+const NOTE_BASS = [ 55,  65.41,  73.42,  82.41,  98.00, 110.00, 130.81, 146.83, 164.81, 196.00];
+const NOTE_TOM  = [ 80,  90,  100,  110,  120,  130,  140,  150,  160, 170];
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+let ctx = null, revNode = null, delNode = null, delFb = null, master = null;
+let noiseBuf = null;
+let started = false;
+let ghostCount = 0;
+
+const brightness = new Float32Array(TOTAL);
+const ledR = new Uint8Array(TOTAL);
+const ledG = new Uint8Array(TOTAL);
+const ledB = new Uint8Array(TOTAL);
+const ghosts = [];
+const fingerMap = new Map(); // id → ledIdx
+
+// ═══════════════════════════════════════════════════════════════════
+//  DOM BUILD
+// ═══════════════════════════════════════════════════════════════════
+const gridEl = document.getElementById('grid');
+const overlay = document.getElementById('overlay');
+
+// Precompute zone per LED
+const LED_ZONE = new Uint8Array(TOTAL);
+for (let i = 0; i < TOTAL; i++) {
+  const row = (i / COLS) | 0;
+  for (let z = 0; z < ZONES.length; z++) {
+    if (row >= ZONES[z].s && row <= ZONES[z].e) { LED_ZONE[i] = z; break; }
+  }
+}
+
+// Build LED elements
+const leds = [];
+for (let i = 0; i < TOTAL; i++) {
+  const d = document.createElement('div');
+  d.className = `led z${LED_ZONE[i]}`;
+  gridEl.appendChild(d);
+  leds.push(d);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AUDIO ENGINE
+// ═══════════════════════════════════════════════════════════════════
+function initAudio() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // ── White noise buffer ────────────────────────────────────────────
+  const nf = ctx.sampleRate * 2;
+  noiseBuf = ctx.createBuffer(1, nf, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nf; i++) nd[i] = Math.random() * 2 - 1;
+
+  // ── Synthetic reverb (convolver) ──────────────────────────────────
+  revNode = ctx.createConvolver();
+  const rlen = (ctx.sampleRate * 2.8) | 0;
+  const rbuf = ctx.createBuffer(2, rlen, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = rbuf.getChannelData(c);
+    for (let i = 0; i < rlen; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rlen, 2.0) * (c === 0 ? 1 : -1) * (0.8 + Math.random() * 0.4);
+  }
+  revNode.buffer = rbuf;
+
+  // ── Echo: delay + feedback ────────────────────────────────────────
+  delNode = ctx.createDelay(2.0);
+  delNode.delayTime.value = (60 / BPM) * 0.75; // dotted-eighth echo
+  delFb = ctx.createGain();
+  delFb.gain.value = 0.36;
+  delNode.connect(delFb);
+  delFb.connect(delNode);
+
+  // ── Compressor/limiter ────────────────────────────────────────────
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -5;
+  comp.knee.value = 3;
+  comp.ratio.value = 10;
+  comp.attack.value = 0.003;
+  comp.release.value = 0.2;
+
+  // ── Master ────────────────────────────────────────────────────────
+  master = ctx.createGain();
+  master.gain.value = 0.88;
+
+  revNode.connect(master);
+  delNode.connect(master);
+  master.connect(comp);
+  comp.connect(ctx.destination);
+
+  updateStatus();
+}
+
+// Route a gain node to dry/reverb/echo buses
+function route(g, dry, wet, echo) {
+  if (dry > 0) {
+    const dg = ctx.createGain(); dg.gain.value = dry;
+    g.connect(dg); dg.connect(master);
+  }
+  if (wet > 0) {
+    const wg = ctx.createGain(); wg.gain.value = wet;
+    g.connect(wg); wg.connect(revNode);
+  }
+  if (echo > 0) {
+    const eg = ctx.createGain(); eg.gain.value = echo;
+    g.connect(eg); eg.connect(delNode);
+  }
+}
+
+// ── Instrument voices ─────────────────────────────────────────────
+
+function playPad(t, freq, v) {
+  const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+  o1.type = 'sine'; o2.type = 'triangle';
+  o1.frequency.value = freq;
+  o2.frequency.value = freq; o2.detune.value = 11;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.28 * v, t + 0.2);
+  g.gain.setValueAtTime(0.22 * v, t + 0.5);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 1.6);
+  o1.connect(g); o2.connect(g);
+  route(g, 0.3, 0.7, 0.12);
+  o1.start(t); o2.start(t); o1.stop(t+1.7); o2.stop(t+1.7);
+}
+
+function playLead(t, freq, v) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth'; osc.frequency.value = freq;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass'; filt.Q.value = 9;
+  filt.frequency.setValueAtTime(freq * 12, t);
+  filt.frequency.exponentialRampToValueAtTime(freq * 0.65, t + 0.22);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.38 * v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.58);
+  osc.connect(filt); filt.connect(g);
+  route(g, 0.5, 0.12, 0.58);
+  osc.start(t); osc.stop(t+0.65);
+}
+
+function playBass(t, freq, v) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth'; osc.frequency.value = freq;
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass'; filt.Q.value = 14;
+  filt.frequency.setValueAtTime(freq * 7, t);
+  filt.frequency.exponentialRampToValueAtTime(freq * 0.35, t + 0.18);
+  // Per-note LFO (resonant filter wobble)
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.7 + Math.random() * 0.6;
+  const lg  = ctx.createGain(); lg.gain.value = freq * 0.9;
+  lfo.connect(lg); lg.connect(filt.frequency);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.62 * v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.44);
+  osc.connect(filt); filt.connect(g);
+  route(g, 0.88, 0.04, 0.06);
+  lfo.start(t); osc.start(t); lfo.stop(t+0.5); osc.stop(t+0.5);
+}
+
+function playClap(t, v) {
+  // Layered noise bursts for snap/body
+  for (let i = 0; i < 3; i++) {
+    const n = ctx.createBufferSource(); n.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = 900 + Math.random() * 1400; bp.Q.value = 0.65;
+    const g = ctx.createGain();
+    const on = t + i * 0.013;
+    g.gain.setValueAtTime(0.68 * v, on);
+    g.gain.exponentialRampToValueAtTime(0.001, on + 0.09);
+    n.connect(bp); bp.connect(g);
+    route(g, 0.62, 0.38, 0.08);
+    n.start(on); n.stop(on + 0.11);
+  }
+}
+
+function playHihat(t, v, open) {
+  const n = ctx.createBufferSource(); n.buffer = noiseBuf;
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 8200;
+  const bp = ctx.createBiquadFilter(); bp.type = 'peaking';
+  bp.frequency.value = 10000; bp.gain.value = 6; bp.Q.value = 1;
+  const dec = open ? 0.32 : 0.055;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.48 * v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dec);
+  n.connect(hp); hp.connect(bp); bp.connect(g);
+  route(g, 0.85, 0.1, open ? 0.08 : 0.02);
+  n.start(t); n.stop(t + dec + 0.01);
+}
+
+function playTom(t, freq, v) {
+  const osc = ctx.createOscillator(); osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq * 2.4, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.65, t + 0.13);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.72 * v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+  osc.connect(g);
+  route(g, 0.78, 0.2, 0.04);
+  osc.start(t); osc.stop(t+0.4);
+}
+
+function playKick(t, v) {
+  const osc = ctx.createOscillator();
+  osc.frequency.setValueAtTime(175, t);
+  osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.48);
+  // Soft clip for punch
+  const ws = ctx.createWaveShaper();
+  const c = new Float32Array(512);
+  for (let i = 0; i < 512; i++) {
+    const x = i * 2 / 512 - 1;
+    c[i] = (Math.PI + 180) * x / (Math.PI + 180 * Math.abs(x));
+  }
+  ws.curve = c;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(1.5 * v, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+  osc.connect(ws); ws.connect(g);
+  route(g, 1.0, 0.02, 0.0);
+  osc.start(t); osc.stop(t+0.52);
+}
+
+function triggerSound(ledIdx, vel) {
+  if (!ctx) return;
+  const t = ctx.currentTime + 0.012;
+  const col = ledIdx % COLS;
+  const z = LED_ZONE[ledIdx];
+  switch (z) {
+    case 0: playPad  (t, NOTE_PAD[col],  vel); break;
+    case 1: playLead (t, NOTE_LEAD[col], vel); break;
+    case 2: playBass (t, NOTE_BASS[col], vel); break;
+    case 3: playClap (t, vel);                 break;
+    case 4: playHihat(t, vel, col > 6);        break;
+    case 5: playTom  (t, NOTE_TOM[col],  vel); break;
+    case 6: playKick (t, vel);                 break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  LED DISPLAY SYSTEM  (RAF-driven brightness decay)
+// ═══════════════════════════════════════════════════════════════════
+function activateLED(idx, vel) {
+  const z = LED_ZONE[idx];
+  const [r, g, b] = ZONES[z].c;
+  brightness[idx] = Math.min(1, vel);
+  ledR[idx] = r; ledG[idx] = g; ledB[idx] = b;
+
+  // Glow propagation to neighbors
+  const row = (idx / COLS) | 0, col = idx % COLS;
+  const ri = Math.ceil(GLOW_RADIUS);
+  for (let dr = -ri; dr <= ri; dr++) {
+    for (let dc = -ri; dc <= ri; dc++) {
+      const dist = Math.sqrt(dr*dr + dc*dc);
+      if (dist === 0 || dist > GLOW_RADIUS) continue;
+      const nr = row + dr, nc = col + dc;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+      const ni = nr * COLS + nc;
+      const s = (1 - dist / GLOW_RADIUS) * vel * 0.48;
+      if (s > brightness[ni]) {
+        brightness[ni] = s;
+        ledR[ni] = r; ledG[ni] = g; ledB[ni] = b;
+      }
+    }
+  }
+}
+
+let frameCount = 0;
+function rafLoop() {
+  frameCount++;
+  // Update every other frame for battery on mobile (still ~30fps)
+  if (frameCount % 2 === 0) {
+    for (let i = 0; i < TOTAL; i++) {
+      const br = brightness[i];
+      if (br < 0.003) {
+        if (br > 0) { brightness[i] = 0; leds[i].style.cssText = ''; }
+        continue;
+      }
+      brightness[i] = br * DECAY;
+      const r = ledR[i], g = ledG[i], b = ledB[i];
+      const a = br.toFixed(3);
+      if (br > 0.6) {
+        leds[i].style.cssText =
+          `background:rgb(${r},${g},${b});` +
+          `box-shadow:0 0 ${(br*13)|0}px rgba(${r},${g},${b},${a}),` +
+                     `0 0 ${(br*26)|0}px rgba(${r},${g},${b},${(br*0.38).toFixed(3)})`;
+      } else if (br > 0.12) {
+        leds[i].style.cssText =
+          `background:rgba(${r},${g},${b},${a});` +
+          `box-shadow:0 0 ${(br*9)|0}px rgba(${r},${g},${b},${(br*0.55).toFixed(3)})`;
+      } else {
+        leds[i].style.cssText = `background:rgba(${r},${g},${b},${a})`;
+      }
+    }
+  }
+  requestAnimationFrame(rafLoop);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GHOST / LOOP SYSTEM
+// ═══════════════════════════════════════════════════════════════════
+function addGhost(ledIdx) {
+  // Trim oldest if over limit
+  while (ghosts.length >= MAX_GHOSTS) {
+    const old = ghosts.shift();
+    clearTimeout(old.timer);
+  }
+  const ghost = { ledIdx, repeats: GHOST_REPEATS, timer: null };
+  ghosts.push(ghost);
+
+  function repeat() {
+    if (ghost.repeats <= 0) {
+      const i = ghosts.indexOf(ghost);
+      if (i >= 0) ghosts.splice(i, 1);
+      updateStatus();
+      return;
+    }
+    // Velocity decays each repeat
+    const vel = 0.62 * (ghost.repeats / GHOST_REPEATS);
+    triggerSound(ghost.ledIdx, vel);
+    activateLED(ghost.ledIdx, vel * 0.9);
+    ghost.repeats--;
+    ghost.timer = setTimeout(repeat, BAR_MS);
+  }
+  ghost.timer = setTimeout(repeat, BAR_MS);
+  updateStatus();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AMBIENT SCINTILLATION  (idle sparkle)
+// ═══════════════════════════════════════════════════════════════════
+function scintillate() {
+  const count = 2 + Math.floor(Math.random() * 3);
+  for (let n = 0; n < count; n++) {
+    const idx = Math.floor(Math.random() * TOTAL);
+    if (brightness[idx] < 0.04) {
+      const z = LED_ZONE[idx];
+      const [r, g, b] = ZONES[z].c;
+      brightness[idx] = 0.04 + Math.random() * 0.1;
+      ledR[idx] = r; ledG[idx] = g; ledB[idx] = b;
+    }
+  }
+  setTimeout(scintillate, 120 + Math.random() * 280);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INPUT HANDLING  (multi-touch + mouse)
+// ═══════════════════════════════════════════════════════════════════
+function getIdx(cx, cy) {
+  const rect = gridEl.getBoundingClientRect();
+  const rx = (cx - rect.left) / rect.width;
+  const ry = (cy - rect.top)  / rect.height;
+  if (rx < 0 || rx > 1 || ry < 0 || ry > 1) return -1;
+  return ((ry * ROWS) | 0) * COLS + ((rx * COLS) | 0);
+}
+
+function fire(idx, vel, loop) {
+  triggerSound(idx, vel);
+  activateLED(idx, vel);
+  if (loop) addGhost(idx);
+}
+
+function ensureStarted() {
+  if (started) return;
+  started = true;
+  initAudio();
+  overlay.classList.add('hide');
+  setTimeout(() => { try { overlay.remove(); } catch(e){} }, 1000);
+  requestAnimationFrame(rafLoop);
+  scintillate();
+}
+
+// Touch events
+gridEl.addEventListener('touchstart', e => {
+  e.preventDefault();
+  ensureStarted();
+  for (const t of e.changedTouches) {
+    const idx = getIdx(t.clientX, t.clientY);
+    if (idx < 0) continue;
+    fingerMap.set(t.identifier, idx);
+    fire(idx, 1.0, true); // tap = create ghost loop
+  }
+}, { passive: false });
+
+gridEl.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const prev = fingerMap.get(t.identifier);
+    const idx = getIdx(t.clientX, t.clientY);
+    if (idx < 0 || idx === prev) continue;
+    fingerMap.set(t.identifier, idx);
+    fire(idx, 0.82, false); // swipe = play only, no loop
+  }
+}, { passive: false });
+
+gridEl.addEventListener('touchend', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) fingerMap.delete(t.identifier);
+}, { passive: false });
+
+gridEl.addEventListener('touchcancel', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) fingerMap.delete(t.identifier);
+}, { passive: false });
+
+// Mouse events
+let mouseDown = false, lastMouseIdx = -1;
+
+gridEl.addEventListener('mousedown', e => {
+  mouseDown = true;
+  ensureStarted();
+  const idx = getIdx(e.clientX, e.clientY);
+  if (idx < 0) return;
+  lastMouseIdx = idx;
+  fire(idx, 1.0, true);
+});
+
+window.addEventListener('mousemove', e => {
+  if (!mouseDown) return;
+  const idx = getIdx(e.clientX, e.clientY);
+  if (idx < 0 || idx === lastMouseIdx) return;
+  lastMouseIdx = idx;
+  fire(idx, 0.82, false);
+});
+
+window.addEventListener('mouseup', () => { mouseDown = false; lastMouseIdx = -1; });
+
+// Overlay tap to start
+overlay.addEventListener('touchstart', e => {
+  e.preventDefault();
+  ensureStarted();
+}, { passive: false });
+overlay.addEventListener('mousedown', () => ensureStarted());
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATUS DISPLAY
+// ═══════════════════════════════════════════════════════════════════
+function updateStatus() {
+  document.getElementById('s-bpm').textContent  = BPM;
+  document.getElementById('s-ech').textContent  = 'ON';
+  document.getElementById('s-rev').textContent  = 'ON';
+  document.getElementById('s-lfo').textContent  = 'ON';
+  document.getElementById('s-gho').textContent  = ghosts.length || '—';
+}
+</script>
+</body>
+</html>
