@@ -1,0 +1,323 @@
+:root {
+  color-scheme: dark;
+  --bg: #020203;
+  --panel: #050506;
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #f2f0e8;
+  --muted: rgba(242, 240, 232, 0.58);
+  --green: #8cffc7;
+  --amber: #ffcc6d;
+  --rose: #ff6d9d;
+  --cyan: #63d7ff;
+  --lfo: 0.34;
+  --res: 0.46;
+  --touches: 0;
+  --touch-glow: 0px;
+  --loop: 0;
+  --loop-glow: 0px;
+  --radius: 8px;
+  font-family: ui-rounded, "SF Pro Rounded", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+body {
+  color: var(--text);
+  touch-action: none;
+  user-select: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app {
+  width: min(100vw, 520px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.06), transparent 44%),
+    linear-gradient(180deg, #070708, #000 54%);
+}
+
+.topbar,
+.dock {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+}
+
+.power,
+.icon-button {
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: #0b0b0d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.36);
+}
+
+.power {
+  min-width: 112px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.power-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #444;
+  box-shadow: 0 0 0 rgba(140, 255, 199, 0);
+}
+
+.power[aria-pressed="true"] .power-dot {
+  background: var(--green);
+  box-shadow: 0 0 18px rgba(140, 255, 199, 0.9);
+}
+
+.readout {
+  min-width: 108px;
+  height: 44px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.readout span:first-child {
+  color: var(--text);
+}
+
+.display {
+  position: relative;
+  min-height: 0;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  padding: 6px 0;
+}
+
+.led-grid {
+  position: relative;
+  z-index: 2;
+  width: min(100%, calc((100svh - 172px) / 2), 356px);
+  aspect-ratio: 10 / 20;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  gap: clamp(4px, 1.1vw, 7px);
+  padding: clamp(9px, 2.5vw, 14px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 34%),
+    #010101;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.88),
+    inset 0 0 54px rgba(255, 255, 255, 0.025),
+    inset 0 0 calc(18px + var(--res) * 26px) rgba(99, 215, 255, calc(var(--lfo) * 0.08)),
+    inset 0 0 var(--loop-glow) rgba(255, 204, 109, calc(var(--loop) * 0.12)),
+    0 0 var(--touch-glow) rgba(255, 109, 157, 0.12),
+    0 28px 80px rgba(0, 0, 0, 0.52);
+}
+
+.led {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background:
+    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.22), transparent 18%),
+    radial-gradient(circle, rgba(128, 128, 128, 0.2), rgba(26, 28, 29, 0.78) 50%, #070808 70%);
+  box-shadow:
+    inset 0 0 7px rgba(255, 255, 255, 0.035),
+    0 0 0 1px rgba(255, 255, 255, 0.035);
+  opacity: 0.66;
+  transform: scale(0.98);
+}
+
+.led::before {
+  content: "";
+  position: absolute;
+  inset: -9%;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 36% 30%, rgba(255, 255, 255, calc(var(--aura, 0) * 0.18)), transparent 18%),
+    radial-gradient(circle, var(--aura-color, var(--green)), transparent 62%);
+  opacity: calc(var(--aura, 0) * 0.42);
+  filter: blur(1px);
+  transition: opacity 120ms linear;
+}
+
+.led::after {
+  content: "";
+  position: absolute;
+  inset: -42%;
+  border-radius: inherit;
+  background: radial-gradient(circle, var(--led-color, var(--green)), transparent 58%);
+  opacity: calc(var(--glow, 0) * 0.8);
+  filter: blur(9px);
+  z-index: -1;
+}
+
+.led.has-aura {
+  background:
+    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, calc(0.18 + var(--aura, 0) * 0.2)), transparent 18%),
+    radial-gradient(circle, color-mix(in srgb, var(--aura-color, var(--green)) calc(var(--aura, 0) * 52%), rgba(128, 128, 128, 0.2)) 0%, rgba(26, 28, 29, 0.78) 56%, #070808 74%);
+  box-shadow:
+    inset 0 0 calc(7px + var(--aura, 0) * 8px) rgba(255, 255, 255, calc(0.035 + var(--aura, 0) * 0.08)),
+    0 0 calc(var(--aura, 0) * 14px) color-mix(in srgb, var(--aura-color, var(--green)) 54%, transparent);
+  opacity: calc(0.66 + var(--aura, 0) * 0.28);
+}
+
+.led.is-on {
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.92), transparent 15%),
+    radial-gradient(circle, color-mix(in srgb, var(--led-color, var(--green)) 92%, white 8%), var(--led-color, var(--green)) 45%, rgba(19, 22, 21, 0.9) 76%);
+  box-shadow:
+    inset 0 0 12px rgba(255, 255, 255, 0.18),
+    0 0 calc(7px + var(--glow, 0) * 18px) color-mix(in srgb, var(--led-color, var(--green)) 74%, transparent);
+  opacity: 1;
+  transform: scale(calc(0.96 + var(--glow, 0) * 0.1));
+}
+
+.led.is-step {
+  outline: 1px solid rgba(255, 255, 255, 0.36);
+  outline-offset: 3px;
+}
+
+.gesture-canvas {
+  position: absolute;
+  inset: 6px 0;
+  width: 100%;
+  height: calc(100% - 12px);
+  pointer-events: none;
+  opacity: 0.82;
+}
+
+.dock {
+  gap: 6px;
+}
+
+.icon-button {
+  width: 42px;
+  flex: 0 0 42px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.icon-button[aria-pressed="true"] {
+  color: #06100c;
+  background: var(--green);
+  border-color: rgba(140, 255, 199, 0.82);
+}
+
+.slider {
+  width: 100%;
+  flex: 1 1 74px;
+  min-width: 0;
+  accent-color: var(--amber);
+}
+
+.fx-control {
+  width: 56px;
+  flex: 0 0 56px;
+  height: 44px;
+  padding: 5px 7px 6px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.fx-control span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.mini-slider {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--cyan);
+}
+
+.resonance-slider {
+  accent-color: var(--rose);
+}
+
+@media (max-height: 710px) {
+  .app {
+    gap: 10px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .topbar,
+  .dock {
+    min-height: 42px;
+  }
+
+  .power,
+  .icon-button,
+  .readout,
+  .fx-control {
+    height: 40px;
+  }
+
+  .fx-control {
+    width: 52px;
+    flex-basis: 52px;
+  }
+}
+
+@supports not (color: color-mix(in srgb, white, black)) {
+  .led.is-on {
+    box-shadow:
+      inset 0 0 12px rgba(255, 255, 255, 0.18),
+      0 0 18px rgba(140, 255, 199, 0.48);
+  }
+}

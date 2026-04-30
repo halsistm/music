@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="200 LED">
+    <title>200 LED</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app" aria-label="200 LED music instrument">
+      <header class="topbar">
+        <button id="powerButton" class="power" type="button" aria-pressed="false" aria-label="Start audio">
+          <span class="power-dot" aria-hidden="true"></span>
+          <span class="power-text">START</span>
+        </button>
+        <div class="readout" aria-live="polite">
+          <span id="tempoText">126</span>
+          <span id="moodText">SOFT</span>
+        </div>
+      </header>
+
+      <section class="display" aria-label="LED grid">
+        <div id="ledGrid" class="led-grid"></div>
+        <canvas id="gestureCanvas" class="gesture-canvas" aria-hidden="true"></canvas>
+      </section>
+
+      <footer class="dock" aria-label="Sound controls">
+        <button class="icon-button" id="clearButton" type="button" aria-label="Clear pattern" title="Clear pattern">C</button>
+        <input id="energySlider" class="slider" type="range" min="0" max="100" value="62" aria-label="Energy">
+        <label class="fx-control" title="LFO">
+          <span>LFO</span>
+          <input id="lfoSlider" class="mini-slider lfo-slider" type="range" min="0" max="100" value="34" aria-label="LFO depth">
+        </label>
+        <label class="fx-control" title="Resonance">
+          <span>RES</span>
+          <input id="resonanceSlider" class="mini-slider resonance-slider" type="range" min="0" max="100" value="46" aria-label="Resonance">
+        </label>
+        <button class="icon-button" id="holdButton" type="button" aria-pressed="true" aria-label="Hold lights" title="Hold lights">H</button>
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
