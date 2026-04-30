@@ -219,11 +219,17 @@ let started = false;
 let noiseBuf = null;
 let masterFilter, sendBus;
 
+function resumeAudio() {
+  if (!ctx || ctx.state !== 'suspended' || typeof ctx.resume !== 'function') return;
+  const p = ctx.resume();
+  if (p && typeof p.catch === 'function') p.catch(() => {});
+}
+
 function start() {
   if (started) return;
   started = true;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') ctx.resume();
+  resumeAudio();
 
   // White noise buffer
   const len = ctx.sampleRate * 2;
@@ -521,6 +527,7 @@ function triggerCell(idx, vel) {
 
 function handlePointer(id, cx, cy, isDown) {
   if (!started) start();
+  resumeAudio();
   if (!ctx) return;
   const idx = getCellFromCoords(cx, cy);
   if (idx < 0) return;
@@ -550,6 +557,41 @@ function endPointer(e) { pointers.delete(e.pointerId); }
 wrap.addEventListener('pointerup', endPointer);
 wrap.addEventListener('pointercancel', endPointer);
 wrap.addEventListener('pointerleave', endPointer);
+
+function handleTouchList(touches, isDown) {
+  if (!started) start();
+  resumeAudio();
+  for (let i = 0; i < touches.length; i++) {
+    const t = touches[i];
+    handlePointer(`touch-${t.identifier}`, t.clientX, t.clientY, isDown);
+  }
+}
+
+wrap.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  handleTouchList(e.changedTouches, true);
+}, { passive: false });
+
+wrap.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  handleTouchList(e.changedTouches, false);
+}, { passive: false });
+
+function endTouchList(touches) {
+  for (let i = 0; i < touches.length; i++) {
+    pointers.delete(`touch-${touches[i].identifier}`);
+  }
+}
+
+wrap.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  endTouchList(e.changedTouches);
+}, { passive: false });
+
+wrap.addEventListener('touchcancel', (e) => {
+  e.preventDefault();
+  endTouchList(e.changedTouches);
+}, { passive: false });
 
 document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 document.addEventListener('gesturestart', (e) => e.preventDefault());
