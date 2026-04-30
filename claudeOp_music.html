@@ -2,475 +2,558 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>LED DRUM</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>電光残響 — LED 200</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  html {
+    background: #000;
+    height: 100%;
+    overscroll-behavior: none;
+  }
 
   body {
     background: #000;
-    min-height: 100dvh;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
+    font-family: 'Courier New', Courier, monospace;
+    color: #444;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-family: 'Courier New', Courier, monospace;
-    color: #555;
-    overflow: hidden;
-    user-select: none;
-    touch-action: none;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   }
 
-  #header {
+  #title {
     font-size: 9px;
-    letter-spacing: 4px;
+    letter-spacing: 5px;
+    color: #2c2c2c;
+    margin-bottom: 12px;
     text-transform: uppercase;
-    color: #333;
-    margin-bottom: 18px;
   }
 
   #grid-wrap {
     position: relative;
-    cursor: crosshair;
+    flex-shrink: 0;
   }
 
   #grid {
     display: grid;
     grid-template-columns: repeat(10, 1fr);
-    gap: 5px;
-    padding: 14px;
+    gap: 4px;
+    padding: 7px;
+    width: min(94vw, calc((100dvh - 110px) / 2.05), 380px);
     background: #050505;
-    border: 1px solid #111;
-    border-radius: 6px;
+    border: 1px solid #0d0d0d;
+    border-radius: 8px;
+    touch-action: none;
   }
 
   .led {
-    width: 22px;
-    height: 22px;
+    aspect-ratio: 1;
     border-radius: 50%;
-    background: #0f0800;
-    position: relative;
-    transition: background 0.04s, box-shadow 0.04s;
+    background: #060606;
+    will-change: background, box-shadow;
   }
 
-  .led.seq-on { background: #1a0f00; }
+  .led[data-zone="0"] { background: #001512; }
+  .led[data-zone="1"] { background: #160815; }
+  .led[data-zone="2"] { background: #0d0014; }
+  .led[data-zone="3"] { background: #150d00; }
+  .led[data-zone="4"] { background: #160400; }
 
-  .led.beat-k { background: #ff6600; box-shadow: 0 0 7px #ff4400, 0 0 14px #ff220033; }
-  .led.beat-s { background: #ffcc00; box-shadow: 0 0 7px #ffaa00, 0 0 14px #ff880033; }
-  .led.beat-h { background: #ff9900; box-shadow: 0 0 4px #ff8800; }
-  .led.beat-b { background: #00ddff; box-shadow: 0 0 7px #00bbff, 0 0 14px #0088ff33; }
-  .led.beat-p { background: #aa44ff; box-shadow: 0 0 6px #8833ff; }
-
-  .led.touch-glow {
-    background: #00ccff;
-    box-shadow: 0 0 10px #00aaff, 0 0 20px #0066ff55;
+  #footer {
+    margin-top: 12px;
+    font-size: 8px;
+    letter-spacing: 4px;
+    color: #1f1f1f;
+    text-align: center;
+    line-height: 1.7;
   }
-
-  .led.ripple {
-    animation: ripple-anim 0.35s ease-out forwards;
-  }
-
-  @keyframes ripple-anim {
-    0%   { background: #00ddff; box-shadow: 0 0 14px #00aaff; }
-    100% { background: #0f0800; box-shadow: none; }
-  }
-
-  #status {
-    margin-top: 18px;
-    display: flex;
-    gap: 24px;
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: #333;
-  }
-
-  #bpm-val { color: #ff6600; }
-  #tone-val { color: #00aaff; }
 
   #start-hint {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.92);
+    border-radius: 8px;
+    color: #4a4a4a;
     font-size: 11px;
-    letter-spacing: 3px;
-    color: #444;
+    letter-spacing: 4px;
     text-transform: uppercase;
-    transition: opacity 0.4s;
+    transition: opacity 0.6s;
     z-index: 10;
+    pointer-events: none;
   }
 
-  #start-hint.hidden { opacity: 0; pointer-events: none; }
-
-  #footer {
-    margin-top: 14px;
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: #222;
-    text-align: center;
-    line-height: 1.8;
-  }
+  #start-hint.hidden { opacity: 0; }
 </style>
 </head>
 <body>
 
-<div id="header">LED DRUM 100</div>
+<div id="title">電光残響 — LED 200</div>
 
 <div id="grid-wrap">
   <div id="grid"></div>
   <div id="start-hint">tap to start</div>
 </div>
 
-<div id="status">
-  <span>BPM <span id="bpm-val">—</span></span>
-  <span>TONE <span id="tone-val">—</span></span>
-</div>
-
-<div id="footer">
-  x axis → tone / density &nbsp;|&nbsp; y axis → tempo / chaos
-</div>
+<div id="footer">touch · drag · multi-finger<br>loops fade · 4 sec cycle</div>
 
 <script>
-const N = 10;
-const TOTAL = 100;
+'use strict';
+
+// === GRID ===
+const N_COLS = 10;
+const N_ROWS = 20;
+const TOTAL = N_COLS * N_ROWS;
+const zoneOf = (row) => Math.min(4, (row / 4) | 0);
+
 const grid = document.getElementById('grid');
+const wrap = document.getElementById('grid-wrap');
 const hint = document.getElementById('start-hint');
-const bpmVal = document.getElementById('bpm-val');
-const toneVal = document.getElementById('tone-val');
 
 const leds = [];
-for (let i = 0; i < TOTAL; i++) {
-  const d = document.createElement('div');
-  d.className = 'led';
-  grid.appendChild(d);
-  leds.push(d);
+for (let r = 0; r < N_ROWS; r++) {
+  for (let c = 0; c < N_COLS; c++) {
+    const d = document.createElement('div');
+    d.className = 'led';
+    d.dataset.zone = zoneOf(r);
+    grid.appendChild(d);
+    leds.push(d);
+  }
 }
 
+// Zone visual identities (hue, saturation)
+const ZONE = [
+  { hue: 168, sat: 100 }, // 0: cyan-teal — hihat
+  { hue: 322, sat: 100 }, // 1: magenta — lead
+  { hue: 268, sat:  85 }, // 2: purple — pad
+  { hue:  38, sat: 100 }, // 3: amber — snare
+  { hue:  14, sat: 100 }, // 4: red-orange — kick / bass
+];
+
+// === VISUAL ===
+const ledBright = new Float32Array(TOTAL);
+const activeLEDs = new Set();
+
+function lightLED(idx, intensity) {
+  if (idx < 0 || idx >= TOTAL) return;
+  if (intensity > ledBright[idx]) {
+    ledBright[idx] = Math.min(1.5, intensity);
+    activeLEDs.add(idx);
+  }
+}
+
+// Concentric splash rings around touched LED
+const SPLASH = [
+  [-1,  0, 0.55], [ 1,  0, 0.55], [ 0, -1, 0.55], [ 0,  1, 0.55],
+  [-1, -1, 0.30], [-1,  1, 0.30], [ 1, -1, 0.30], [ 1,  1, 0.30],
+  [-2,  0, 0.18], [ 2,  0, 0.18], [ 0, -2, 0.18], [ 0,  2, 0.18],
+  [-2, -1, 0.10], [-2,  1, 0.10], [ 2, -1, 0.10], [ 2,  1, 0.10],
+  [-1, -2, 0.10], [-1,  2, 0.10], [ 1, -2, 0.10], [ 1,  2, 0.10],
+];
+
+function splashLED(idx, intensity) {
+  const r = (idx / N_COLS) | 0;
+  const c = idx % N_COLS;
+  lightLED(idx, intensity);
+  for (let i = 0; i < SPLASH.length; i++) {
+    const [dr, dc, m] = SPLASH[i];
+    const nr = r + dr, nc = c + dc;
+    if (nr >= 0 && nr < N_ROWS && nc >= 0 && nc < N_COLS) {
+      lightLED(nr * N_COLS + nc, intensity * m);
+    }
+  }
+}
+
+const DECAY = 0.93;
+
+function visualTick() {
+  const toRm = [];
+  for (const idx of activeLEDs) {
+    const b = ledBright[idx];
+    if (b > 0.012) {
+      const r = (idx / N_COLS) | 0;
+      const z = ZONE[zoneOf(r)];
+      const bb = Math.min(1, b);
+      const light = 4 + bb * 52;
+      const led = leds[idx];
+      led.style.background = `hsl(${z.hue},${z.sat}%,${light}%)`;
+      led.style.boxShadow =
+        `0 0 ${bb * 12}px hsl(${z.hue},${z.sat}%,55%),` +
+        `0 0 ${bb * 26}px hsla(${z.hue},${z.sat}%,50%,0.45)`;
+      ledBright[idx] = b * DECAY;
+    } else {
+      ledBright[idx] = 0;
+      const led = leds[idx];
+      led.style.background = '';
+      led.style.boxShadow = '';
+      toRm.push(idx);
+    }
+  }
+  for (const i of toRm) activeLEDs.delete(i);
+  requestAnimationFrame(visualTick);
+}
+requestAnimationFrame(visualTick);
+
+// === AUDIO ===
 let ctx = null;
-let noiseBuffer = null;
 let started = false;
-let step = 0;
-let nextStepTime = 0;
-let schedulerTimer = null;
-
-let touchX = 0.5;
-let touchY = 0.5;
-let bpm = 120;
-let filterCutoff = 800;
-let density = 0.5;
-let chaos = 0.3;
-let isDown = false;
-
-const bassNotes = [55, 55, 69, 73, 55, 55, 62, 65];
-const padNotes  = [220, 277, 330, 220, 233, 293, 349, 233];
-
-function makeNoise(ctx) {
-  const frames = ctx.sampleRate * 2;
-  const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < frames; i++) d[i] = Math.random() * 2 - 1;
-  return buf;
-}
-
-function playKick(t) {
-  const osc = ctx.createOscillator();
-  const g   = ctx.createGain();
-  const dist = ctx.createWaveShaper();
-  const curve = new Float32Array(256);
-  for (let i = 0; i < 256; i++) {
-    const x = (i * 2) / 256 - 1;
-    curve[i] = (Math.PI + 200) * x / (Math.PI + 200 * Math.abs(x));
-  }
-  dist.curve = curve;
-  osc.frequency.setValueAtTime(160, t);
-  osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.38);
-  g.gain.setValueAtTime(1.4, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
-  osc.connect(dist); dist.connect(g); g.connect(ctx.destination);
-  osc.start(t); osc.stop(t + 0.4);
-  lightBeat(0, 'beat-k');
-}
-
-function playSnare(t) {
-  const n  = ctx.createBufferSource();
-  n.buffer = noiseBuffer;
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.frequency.value = 2000; bp.Q.value = 0.5;
-  const osc = ctx.createOscillator();
-  osc.frequency.value = 180;
-  const g1 = ctx.createGain();
-  const g2 = ctx.createGain();
-  g1.gain.setValueAtTime(0.9, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-  g2.gain.setValueAtTime(0.5, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-  n.connect(bp); bp.connect(g1); g1.connect(ctx.destination);
-  osc.connect(g2); g2.connect(ctx.destination);
-  n.start(t); n.stop(t + 0.2);
-  osc.start(t); osc.stop(t + 0.12);
-  lightBeat(40, 'beat-s');
-}
-
-function playHihat(t, open) {
-  const n  = ctx.createBufferSource();
-  n.buffer = noiseBuffer;
-  const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 9000;
-  const g  = ctx.createGain();
-  const decay = open ? 0.22 : 0.055;
-  g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + decay);
-  n.connect(hp); hp.connect(g); g.connect(ctx.destination);
-  n.start(t); n.stop(t + decay + 0.01);
-  lightBeat(80, 'beat-h');
-}
-
-function playBass(t, freq) {
-  const osc = ctx.createOscillator();
-  osc.type = 'sawtooth'; osc.frequency.value = freq;
-  const lp  = ctx.createBiquadFilter();
-  lp.type = 'lowpass';
-  const cut = filterCutoff * (0.4 + touchX * 1.6);
-  lp.frequency.setValueAtTime(cut, t);
-  lp.frequency.exponentialRampToValueAtTime(cut * 0.15, t + 0.25);
-  lp.Q.value = 6 + touchX * 10;
-  const g   = ctx.createGain();
-  g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
-  osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
-  osc.start(t); osc.stop(t + 0.35);
-  lightBeat(20, 'beat-b');
-}
-
-function playPad(t, freq) {
-  const voices = 3;
-  const detunes = [-8, 0, 8];
-  const master = ctx.createGain();
-  const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = filterCutoff * (0.3 + touchX * 2);
-  lp.Q.value = 1.5;
-  master.gain.setValueAtTime(0.22, t);
-  master.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
-  master.connect(lp); lp.connect(ctx.destination);
-  for (let i = 0; i < voices; i++) {
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = freq;
-    osc.detune.value = detunes[i];
-    osc.connect(master);
-    osc.start(t); osc.stop(t + 0.75);
-  }
-  lightBeat(60, 'beat-p');
-}
-
-function lightBeat(base, cls) {
-  const offset = Math.floor(Math.random() * 10);
-  const idx = base + offset;
-  if (idx < TOTAL) {
-    leds[idx].classList.remove('seq-on', 'beat-k', 'beat-s', 'beat-h', 'beat-b', 'beat-p');
-    leds[idx].classList.add(cls);
-    setTimeout(() => {
-      if (!leds[idx].classList.contains('touch-glow')) {
-        leds[idx].classList.remove(cls);
-      }
-    }, 130);
-  }
-}
-
-const patterns = {
-  kick:  [1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0],
-  snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
-  hihat: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-  bass:  [1,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0],
-  pad:   [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],
-};
-
-function getPattern(name) {
-  const base = patterns[name];
-  const dMod = density + chaos * (Math.random() - 0.5) * 2;
-  return base.map((v, i) => {
-    if (v) return Math.random() > chaos * 0.4 ? 1 : 0;
-    if (name === 'hihat') return Math.random() < dMod * 0.4 ? 1 : 0;
-    if (name === 'bass')  return Math.random() < dMod * 0.25 ? 1 : 0;
-    return 0;
-  });
-}
-
-let cachedPatterns = null;
-let patternGenAt = -1;
-
-function schedule() {
-  const lookahead = 0.12;
-  const scheduleInterval = 0.06;
-
-  while (nextStepTime < ctx.currentTime + lookahead) {
-    if (step === 0) {
-      cachedPatterns = {
-        kick:  getPattern('kick'),
-        snare: getPattern('snare'),
-        hihat: getPattern('hihat'),
-        bass:  getPattern('bass'),
-        pad:   getPattern('pad'),
-      };
-    }
-
-    const t = nextStepTime;
-    const s = step;
-    const bi = Math.floor(s / (16 / N));
-    for (let row = 0; row < N; row++) {
-      const li = row * N + bi;
-      setTimeout(() => {
-        leds.forEach(l => l.classList.remove('seq-on'));
-        for (let r = 0; r < N; r++) leds[r * N + bi].classList.add('seq-on');
-      }, Math.max(0, (t - ctx.currentTime) * 1000 - 10));
-    }
-
-    if (cachedPatterns.kick[s])  playKick(t);
-    if (cachedPatterns.snare[s]) playSnare(t);
-    if (cachedPatterns.hihat[s]) playHihat(t, s % 4 === 2 && Math.random() < 0.15);
-    if (cachedPatterns.bass[s])  playBass(t, bassNotes[s % bassNotes.length]);
-    if (cachedPatterns.pad[s])   playPad(t, padNotes[s % padNotes.length]);
-
-    const secondsPerBeat = 60 / bpm;
-    const secondsPerStep = secondsPerBeat / 4;
-    nextStepTime += secondsPerStep;
-    step = (step + 1) % 16;
-  }
-
-  schedulerTimer = setTimeout(schedule, scheduleInterval * 1000);
-}
+let noiseBuf = null;
+let masterFilter, sendBus;
 
 function start() {
   if (started) return;
   started = true;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  noiseBuffer = makeNoise(ctx);
-  nextStepTime = ctx.currentTime + 0.05;
-  schedule();
+  if (ctx.state === 'suspended') ctx.resume();
+
+  // White noise buffer
+  const len = ctx.sampleRate * 2;
+  noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+
+  // Output chain: filter → compressor → master → destination
+  const master = ctx.createGain();
+  master.gain.value = 0.7;
+  master.connect(ctx.destination);
+
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -10;
+  comp.knee.value = 12;
+  comp.ratio.value = 6;
+  comp.attack.value = 0.005;
+  comp.release.value = 0.15;
+  comp.connect(master);
+
+  masterFilter = ctx.createBiquadFilter();
+  masterFilter.type = 'lowpass';
+  masterFilter.frequency.value = 2400;
+  masterFilter.Q.value = 1.2;
+  masterFilter.connect(comp);
+
+  // LFO breathing on master cutoff
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.16;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 1100;
+  lfo.connect(lfoGain);
+  lfoGain.connect(masterFilter.frequency);
+  lfo.start();
+
+  // Reverb (synthesized IR)
+  const reverb = ctx.createConvolver();
+  const rl = (ctx.sampleRate * 2.5) | 0;
+  const rb = ctx.createBuffer(2, rl, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = rb.getChannelData(ch);
+    for (let i = 0; i < rl; i++) {
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 2.4);
+    }
+  }
+  reverb.buffer = rb;
+  const reverbGain = ctx.createGain();
+  reverbGain.gain.value = 0.32;
+  reverb.connect(reverbGain);
+  reverbGain.connect(masterFilter);
+
+  // Delay with feedback (dotted-8 @ 120bpm feel)
+  const delay = ctx.createDelay(2);
+  delay.delayTime.value = 0.375;
+  const delayFb = ctx.createGain();
+  delayFb.gain.value = 0.42;
+  const delayFilt = ctx.createBiquadFilter();
+  delayFilt.type = 'lowpass';
+  delayFilt.frequency.value = 2500;
+  const delayWet = ctx.createGain();
+  delayWet.gain.value = 0.28;
+  delay.connect(delayFilt);
+  delayFilt.connect(delayFb);
+  delayFb.connect(delay);
+  delay.connect(delayWet);
+  delayWet.connect(masterFilter);
+
+  // Send bus → reverb + delay
+  sendBus = ctx.createGain();
+  sendBus.gain.value = 1.0;
+  sendBus.connect(reverb);
+  sendBus.connect(delay);
+
+  // Loop scheduler
+  loopAnchor = ctx.currentTime + 0.04;
+  nextLoopBoundary = LOOP_LEN;
+  setInterval(scheduler, 28);
+
   hint.classList.add('hidden');
 }
 
-function updateFromTouch(rx, ry) {
-  touchX = Math.max(0, Math.min(1, rx));
-  touchY = Math.max(0, Math.min(1, ry));
-  bpm      = Math.round(80 + touchY * 80);
-  filterCutoff = 300 + touchX * 3500;
-  density  = 0.3 + touchX * 0.6;
-  chaos    = 0.1 + touchY * 0.5;
-  bpmVal.textContent = bpm;
-  const tones = ['dark', 'warm', 'mid', 'bright', 'acid'];
-  toneVal.textContent = tones[Math.floor(touchX * 4.99)];
+// A minor pentatonic
+const PENT = [0, 3, 5, 7, 10];
+function colToFreq(col, baseMidi) {
+  const oct = (col / 5) | 0;
+  const idx = col % 5;
+  const midi = baseMidi + oct * 12 + PENT[idx];
+  return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-function getRippleNeighbors(idx, radius) {
-  const r = Math.floor(idx / N), c = idx % N;
-  const result = [];
-  for (let dr = -radius; dr <= radius; dr++) {
-    for (let dc = -radius; dc <= radius; dc++) {
-      const dist = Math.sqrt(dr*dr + dc*dc);
-      if (dist <= radius && dist > radius - 1.5) {
-        const nr = r + dr, nc = c + dc;
-        if (nr >= 0 && nr < N && nc >= 0 && nc < N) {
-          result.push({ idx: nr * N + nc, delay: dist * 40 });
-        }
+// === VOICES ===
+function vHihat(t, col, x, y, vel) {
+  const n = ctx.createBufferSource();
+  n.buffer = noiseBuf;
+  n.playbackRate.value = 0.7 + Math.random() * 0.7;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 5500 + col * 500;
+  hp.Q.value = 0.5 + y * 4;
+  const g = ctx.createGain();
+  const dec = 0.025 + (1 - y) * 0.18;
+  g.gain.setValueAtTime(0.16 * vel, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dec);
+  n.connect(hp); hp.connect(g);
+  g.connect(masterFilter);
+  const s = ctx.createGain(); s.gain.value = 0.4;
+  g.connect(s); s.connect(sendBus);
+  n.start(t); n.stop(t + dec + 0.02);
+}
+
+function vLead(t, col, x, y, vel) {
+  const f = colToFreq(col, 81); // ~A5 base
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(900 + x * 4500, t);
+  lp.frequency.exponentialRampToValueAtTime(450, t + 0.5);
+  lp.Q.value = 4 + y * 9; // resonance
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.16 * vel, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+  for (const dt of [-9, 9]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    o.detune.value = dt;
+    o.connect(lp);
+    o.start(t); o.stop(t + 0.65);
+  }
+  lp.connect(g);
+  g.connect(masterFilter);
+  const s = ctx.createGain(); s.gain.value = 0.55;
+  g.connect(s); s.connect(sendBus);
+}
+
+function vPad(t, col, x, y, vel) {
+  const f = colToFreq(col, 57); // ~A3 base
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 600 + x * 1800;
+  lp.Q.value = 1.5 + y * 4;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.085 * vel, t + 0.35);
+  g.gain.linearRampToValueAtTime(0.055 * vel, t + 1.2);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
+  for (const dt of [-12, -7, 0, 5, 12]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    o.detune.value = dt * 6;
+    o.connect(lp);
+    o.start(t); o.stop(t + 2.6);
+  }
+  lp.connect(g);
+  g.connect(masterFilter);
+  const s = ctx.createGain(); s.gain.value = 0.7;
+  g.connect(s); s.connect(sendBus);
+}
+
+function vSnare(t, col, x, y, vel) {
+  // Noise body
+  const n = ctx.createBufferSource();
+  n.buffer = noiseBuf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1200 + col * 200;
+  bp.Q.value = 0.7;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.32 * vel, t);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  n.connect(bp); bp.connect(ng);
+  ng.connect(masterFilter);
+  const sN = ctx.createGain(); sN.gain.value = 0.5;
+  ng.connect(sN); sN.connect(sendBus);
+  n.start(t); n.stop(t + 0.2);
+  // Tonal core
+  const o = ctx.createOscillator();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(180 + y * 90, t);
+  o.frequency.exponentialRampToValueAtTime(70, t + 0.08);
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(0.18 * vel, t);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+  o.connect(og);
+  og.connect(masterFilter);
+  o.start(t); o.stop(t + 0.12);
+}
+
+function vKick(t, col, x, y, vel) {
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  const startF = 80 + col * 8;
+  o.frequency.setValueAtTime(startF * 4, t);
+  o.frequency.exponentialRampToValueAtTime(startF, t + 0.025);
+  o.frequency.exponentialRampToValueAtTime(0.001, t + 0.45);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.85 * vel, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+  // Saturation
+  const ws = ctx.createWaveShaper();
+  const cv = new Float32Array(256);
+  const drive = 1.5 + y * 3;
+  for (let i = 0; i < 256; i++) {
+    const u = (i / 256) * 2 - 1;
+    cv[i] = Math.tanh(u * drive);
+  }
+  ws.curve = cv;
+  o.connect(ws); ws.connect(g);
+  g.connect(masterFilter);
+  const s = ctx.createGain(); s.gain.value = 0.22;
+  g.connect(s); s.connect(sendBus);
+  o.start(t); o.stop(t + 0.5);
+}
+
+const VOICES = [vHihat, vLead, vPad, vSnare, vKick];
+
+function trigger(zone, col, row, t, vel) {
+  const rowInZone = row % 4;
+  const x = col / (N_COLS - 1);
+  const y = rowInZone / 3;
+  VOICES[zone](t, col, x, y, vel);
+}
+
+// === LOOP ===
+const LOOP_LEN = 4.0;
+const MAX_REPEATS = 5;
+const events = [];
+let loopAnchor = 0;
+let nextLoopBoundary = 0;
+
+function recordEvent(zone, col, row, vel) {
+  const phase = ((ctx.currentTime - loopAnchor) % LOOP_LEN + LOOP_LEN) % LOOP_LEN;
+  events.push({ phase, zone, col, row, vel, repeats: 0 });
+  if (events.length > 80) events.splice(0, events.length - 80);
+}
+
+function scheduler() {
+  if (!ctx) return;
+  const lookahead = 0.18;
+  while (loopAnchor + nextLoopBoundary < ctx.currentTime + lookahead) {
+    const baseT = loopAnchor + nextLoopBoundary;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.repeats >= MAX_REPEATS) {
+        events.splice(i, 1);
+        continue;
       }
+      const t = baseT + e.phase;
+      const v = e.vel * Math.pow(0.7, e.repeats + 1);
+      if (v > 0.04) {
+        trigger(e.zone, e.col, e.row, t, v);
+        scheduleVisual(e.col, e.row, t, v);
+      }
+      e.repeats++;
     }
-  }
-  return result;
-}
-
-function rippleFrom(idx) {
-  for (let r = 0; r <= 4; r++) {
-    getRippleNeighbors(idx, r).forEach(({ idx: ni, delay }) => {
-      setTimeout(() => {
-        if (!leds[ni].classList.contains('touch-glow')) {
-          leds[ni].classList.remove('ripple');
-          void leds[ni].offsetWidth;
-          leds[ni].classList.add('ripple');
-          setTimeout(() => leds[ni].classList.remove('ripple'), 380);
-        }
-      }, delay + r * 30);
-    });
+    nextLoopBoundary += LOOP_LEN;
   }
 }
 
-function getGridCoords(e) {
-  const wrap = document.getElementById('grid');
-  const rect = wrap.getBoundingClientRect();
-  let cx, cy;
-  if (e.touches) {
-    cx = e.touches[0].clientX;
-    cy = e.touches[0].clientY;
-  } else {
-    cx = e.clientX;
-    cy = e.clientY;
+function scheduleVisual(col, row, t, vel) {
+  const ms = (t - ctx.currentTime) * 1000;
+  setTimeout(() => {
+    splashLED(row * N_COLS + col, Math.min(1, vel * 1.4));
+  }, Math.max(0, ms));
+}
+
+// === INPUT ===
+const pointers = new Map();
+const lastTrigCell = new Float32Array(TOTAL);
+const TRIG_DEDUPE = 0.07;
+
+function getCellFromCoords(cx, cy) {
+  const r = grid.getBoundingClientRect();
+  if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return -1;
+  const ux = (cx - r.left) / r.width;
+  const uy = (cy - r.top) / r.height;
+  const col = Math.max(0, Math.min(N_COLS - 1, (ux * N_COLS) | 0));
+  const row = Math.max(0, Math.min(N_ROWS - 1, (uy * N_ROWS) | 0));
+  return row * N_COLS + col;
+}
+
+function triggerCell(idx, vel) {
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  if (now - lastTrigCell[idx] < TRIG_DEDUPE) return;
+  lastTrigCell[idx] = now;
+  const row = (idx / N_COLS) | 0;
+  const col = idx % N_COLS;
+  const zone = zoneOf(row);
+  trigger(zone, col, row, now, vel);
+  splashLED(idx, 1.0);
+  recordEvent(zone, col, row, vel);
+}
+
+function handlePointer(id, cx, cy, isDown) {
+  if (!started) start();
+  if (!ctx) return;
+  const idx = getCellFromCoords(cx, cy);
+  if (idx < 0) return;
+  const p = pointers.get(id);
+  if (!p) {
+    pointers.set(id, { lastIdx: idx });
+    triggerCell(idx, isDown ? 0.95 : 0.7);
+  } else if (p.lastIdx !== idx) {
+    p.lastIdx = idx;
+    triggerCell(idx, 0.7);
   }
-  const rx = (cx - rect.left) / rect.width;
-  const ry = (cy - rect.top)  / rect.height;
-  return { rx, ry, cx, cy };
 }
 
-function getNearestLedIdx(cx, cy) {
-  let best = 0, bestDist = Infinity;
-  leds.forEach((l, i) => {
-    const r = l.getBoundingClientRect();
-    const dx = cx - (r.left + r.width / 2);
-    const dy = cy - (r.top  + r.height / 2);
-    const d = dx*dx + dy*dy;
-    if (d < bestDist) { bestDist = d; best = i; }
-  });
-  return best;
-}
-
-let lastTouchLed = -1;
-
-function onDown(e) {
+wrap.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  start();
-  isDown = true;
-  const { rx, ry, cx, cy } = getGridCoords(e);
-  updateFromTouch(rx, ry);
-  const idx = getNearestLedIdx(cx, cy);
-  if (idx !== lastTouchLed) {
-    if (lastTouchLed >= 0) leds[lastTouchLed].classList.remove('touch-glow');
-    leds[idx].classList.add('touch-glow');
-    lastTouchLed = idx;
-    rippleFrom(idx);
-  }
-}
+  try { wrap.setPointerCapture(e.pointerId); } catch (_) {}
+  handlePointer(e.pointerId, e.clientX, e.clientY, true);
+});
 
-function onMove(e) {
+wrap.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) return;
   e.preventDefault();
-  if (!isDown) return;
-  const { rx, ry, cx, cy } = getGridCoords(e);
-  updateFromTouch(rx, ry);
-  const idx = getNearestLedIdx(cx, cy);
-  if (idx !== lastTouchLed) {
-    if (lastTouchLed >= 0) leds[lastTouchLed].classList.remove('touch-glow');
-    leds[idx].classList.add('touch-glow');
-    lastTouchLed = idx;
-    rippleFrom(idx);
-  }
-}
+  handlePointer(e.pointerId, e.clientX, e.clientY, false);
+});
 
-function onUp(e) {
-  isDown = false;
-  if (lastTouchLed >= 0) {
-    setTimeout(() => {
-      leds[lastTouchLed].classList.remove('touch-glow');
-      lastTouchLed = -1;
-    }, 200);
-  }
-}
+function endPointer(e) { pointers.delete(e.pointerId); }
+wrap.addEventListener('pointerup', endPointer);
+wrap.addEventListener('pointercancel', endPointer);
+wrap.addEventListener('pointerleave', endPointer);
 
-const wrap = document.getElementById('grid-wrap');
-wrap.addEventListener('touchstart',  onDown, { passive: false });
-wrap.addEventListener('touchmove',   onMove, { passive: false });
-wrap.addEventListener('touchend',    onUp,   { passive: false });
-wrap.addEventListener('mousedown',   onDown);
-wrap.addEventListener('mousemove',   onMove);
-wrap.addEventListener('mouseup',     onUp);
-wrap.addEventListener('mouseleave',  onUp);
+document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
 </script>
 </body>
 </html>
