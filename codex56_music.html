@@ -242,6 +242,8 @@
     }
 
     .grid-frame {
+      --ambient-energy: 0;
+      --ambient-rgb: 85, 245, 245;
       width: min(100%, 690px);
       aspect-ratio: 1;
       position: relative;
@@ -255,6 +257,14 @@
     .grid-frame.is-awake {
       border-color: rgba(125, 232, 235, 0.22);
       box-shadow: 0 34px 110px rgba(0, 0, 0, 0.42), 0 0 90px rgba(62, 226, 228, 0.035), inset 0 0 70px rgba(74, 220, 221, 0.035);
+    }
+
+    .grid-frame.is-awake.is-resonating {
+      border-color: rgba(var(--ambient-rgb), calc(0.18 + var(--ambient-energy) * 0.2));
+      box-shadow:
+        0 34px 110px rgba(0, 0, 0, 0.42),
+        0 0 calc(54px + var(--ambient-energy) * 72px) rgba(var(--ambient-rgb), calc(0.025 + var(--ambient-energy) * 0.11)),
+        inset 0 0 calc(54px + var(--ambient-energy) * 32px) rgba(var(--ambient-rgb), calc(0.018 + var(--ambient-energy) * 0.045));
     }
 
     .grid-frame::before, .grid-frame::after {
@@ -295,6 +305,8 @@
     }
 
     .tone-cell {
+      --sound-glow: 0;
+      --tone-rgb: 85, 245, 245;
       aspect-ratio: 1;
       position: relative;
       z-index: 1;
@@ -304,6 +316,17 @@
       animation: breathe 8s ease-in-out infinite;
       animation-delay: calc(var(--delay) * -1);
       transition: transform 220ms ease, filter 220ms ease, opacity 600ms ease, outline-color 180ms ease;
+    }
+
+    .tone-cell::after {
+      position: absolute;
+      inset: -18%;
+      border: 1px solid transparent;
+      border-radius: inherit;
+      content: "";
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.7);
     }
 
     .tone-cell.is-trail {
@@ -348,18 +371,61 @@
     }
 
     .tone-air {
+      --tone-rgb: 85, 245, 245;
       background: var(--cyan);
       box-shadow: 0 0 10px rgba(85, 245, 245, 0.72), 0 0 24px rgba(46, 232, 236, 0.28), inset 0 0 5px rgba(255, 255, 255, 0.68);
     }
 
     .tone-bloom {
+      --tone-rgb: 255, 86, 214;
       background: var(--pink);
       box-shadow: 0 0 10px rgba(255, 86, 214, 0.76), 0 0 24px rgba(255, 45, 202, 0.28), inset 0 0 5px rgba(255, 255, 255, 0.62);
     }
 
     .tone-glow {
+      --tone-rgb: 255, 242, 106;
       background: var(--yellow);
       box-shadow: 0 0 10px rgba(255, 242, 106, 0.78), 0 0 24px rgba(255, 225, 44, 0.28), inset 0 0 5px rgba(255, 255, 255, 0.7);
+    }
+
+    .tone-cell.is-sounding:not(.is-hidden) {
+      z-index: 3;
+      opacity: calc(0.8 + var(--sound-glow) * 0.2);
+      box-shadow:
+        0 0 calc(11px + var(--sound-glow) * 22px) rgba(var(--tone-rgb), calc(0.5 + var(--sound-glow) * 0.42)),
+        0 0 calc(25px + var(--sound-glow) * 46px) rgba(var(--tone-rgb), calc(0.16 + var(--sound-glow) * 0.28)),
+        inset 0 0 7px rgba(255, 255, 255, calc(0.55 + var(--sound-glow) * 0.35));
+    }
+
+    .tone-cell.is-sounding:not(.is-active):not(.is-trail):not(.is-hidden) {
+      transform: scale(calc(1 + var(--sound-glow) * 0.13));
+      filter: brightness(calc(1 + var(--sound-glow) * 0.9)) saturate(calc(1 + var(--sound-glow) * 0.22));
+    }
+
+    .tone-cell.is-trail.is-sounding:not(.is-hidden) {
+      filter: brightness(calc(1.28 + var(--sound-glow) * 0.58)) saturate(calc(1 + var(--sound-glow) * 0.18));
+    }
+
+    .tone-cell.is-active.is-sounding:not(.is-hidden) {
+      z-index: 5;
+      filter: brightness(calc(1.42 + var(--sound-glow) * 0.48)) saturate(calc(1.08 + var(--sound-glow) * 0.2));
+    }
+
+    .tone-cell.is-note-source:not(.is-hidden)::after {
+      border-color: rgba(var(--tone-rgb), 0.78);
+      animation: note-ripple 1.65s cubic-bezier(0.16, 0.78, 0.3, 1) infinite;
+    }
+
+    @keyframes note-ripple {
+      0% {
+        opacity: calc(var(--sound-glow) * 0.86);
+        transform: scale(0.72);
+      }
+      72% { opacity: calc(var(--sound-glow) * 0.1); }
+      100% {
+        opacity: 0;
+        transform: scale(2.18);
+      }
     }
 
     .start-layer {
@@ -829,6 +895,12 @@
       var TONES = ['air', 'bloom', 'glow'];
       var NOTE_STEPS = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24, 27];
       var TONE_LEVELS = { air: 0.14, bloom: 0.11, glow: 0.075 };
+      var TONE_RGB = { air: '85, 245, 245', bloom: '255, 86, 214', glow: '255, 242, 106' };
+      var VISUAL_PARTIALS = {
+        air: [[0, 1], [7, 0.38]],
+        bloom: [[0, 1], [-12, 0.72]],
+        glow: [[0, 1], [12, 0.5], [19, 0.24]]
+      };
 
       var toneGrid = document.getElementById('toneGrid');
       var gridFrame = document.getElementById('gridFrame');
@@ -868,6 +940,15 @@
       var trailTimeout = null;
       var suspendTimeout = null;
       var previousHelpFocus = null;
+      var soundStrengths = new Float32Array(144);
+      var visualVoices = {
+        air: { energy: 0, target: 0, column: 0, row: 0, noteIndex: 0, sourceId: -1, phase: 0, releaseTime: 1.15 },
+        bloom: { energy: 0, target: 0, column: 0, row: 0, noteIndex: 0, sourceId: -1, phase: 2.1, releaseTime: 1.15 },
+        glow: { energy: 0, target: 0, column: 0, row: 0, noteIndex: 0, sourceId: -1, phase: 4.2, releaseTime: 1.15 }
+      };
+      var soundFrame = null;
+      var soundFrameTime = 0;
+      var reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
       function clamp(value, min, max) {
         var low = min === undefined ? 0 : min;
@@ -911,14 +992,163 @@
           var node = cellNodes[index];
           var trailIndex = trailCells.indexOf(cell.id);
           var trailStrength = trailIndex < 0 || trailCells.length === 0 ? 0 : (trailIndex + 1) / trailCells.length;
+          var soundStrength = soundStrengths[index] || 0;
+          var visualVoice = visualVoices[cell.tone];
           var classNames = ['tone-cell', 'tone-' + cell.tone];
           if (cell.hidden) classNames.push('is-hidden');
           if (activeCell === cell.id) classNames.push('is-active');
           if (trailIndex >= 0) classNames.push('is-trail');
           if (keyboardCell === cell.id && awake) classNames.push('is-keyboard');
+          if (!cell.hidden && soundStrength > 0.025) classNames.push('is-sounding');
+          if (
+            !cell.hidden &&
+            visualVoice.sourceId === cell.id &&
+            visualVoice.energy > 0.035 &&
+            !muted &&
+            volume > 0
+          ) classNames.push('is-note-source');
           node.className = classNames.join(' ');
           node.style.setProperty('--trail', String(trailStrength));
+          node.style.setProperty('--sound-glow', soundStrength.toFixed(3));
         }
+      }
+
+      function findVisualSource(tone, row, column, preferredId) {
+        var preferredCell = cells[preferredId];
+        if (preferredCell && !preferredCell.hidden && preferredCell.tone === tone) return preferredCell.id;
+
+        var bestId = -1;
+        var bestDistance = Infinity;
+        cells.forEach(function (cell) {
+          if (cell.hidden || cell.tone !== tone) return;
+          var distance = Math.hypot(cell.row - row, cell.column - column);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestId = cell.id;
+          }
+        });
+        return bestId;
+      }
+
+      function renderSoundField(timestamp) {
+        var audibleScale = muted || volume <= 0 ? 0 : Math.sqrt(volume / 100);
+        var peakEnergy = 0;
+        var peakTone = 'air';
+
+        TONES.forEach(function (tone) {
+          var audibleEnergy = visualVoices[tone].energy * audibleScale;
+          if (audibleEnergy > peakEnergy) {
+            peakEnergy = audibleEnergy;
+            peakTone = tone;
+          }
+        });
+
+        for (var index = 0; index < cells.length; index += 1) {
+          var cell = cells[index];
+          var node = cellNodes[index];
+          var voice = visualVoices[cell.tone];
+          var strength = 0;
+
+          if (!cell.hidden && voice.energy > 0.002 && audibleScale > 0) {
+            var horizontalDistance = Math.abs(cell.column - voice.column);
+            var verticalDistance = Math.abs(cell.row - voice.row);
+            var distance = Math.hypot(horizontalDistance, verticalDistance);
+            var cellNote = NOTE_STEPS[cell.column];
+            var rootNote = NOTE_STEPS[voice.noteIndex];
+            var pitchGlow = 0;
+            VISUAL_PARTIALS[cell.tone].forEach(function (partial) {
+              var pitchDistance = Math.abs(cellNote - (rootNote + partial[0]));
+              pitchGlow = Math.max(pitchGlow, partial[1] * Math.exp(-pitchDistance * 0.85));
+            });
+            var localGlow = Math.exp(-distance * 0.34);
+            var harmonicGlow = pitchGlow * (0.5 + Math.exp(-verticalDistance * 0.24) * 0.5);
+            var ripple = reduceMotionQuery.matches
+              ? 1
+              : 0.82 + Math.sin(voice.phase - distance * 1.2 + cell.delay * 0.16) * 0.18;
+            strength = clamp(voice.energy * audibleScale * (0.018 + localGlow * 0.58 + harmonicGlow * 0.34) * ripple);
+            if (cell.id === voice.sourceId) strength = Math.max(strength, voice.energy * audibleScale * 0.96);
+          }
+
+          var previousStrength = soundStrengths[index];
+          soundStrengths[index] = strength;
+          if (Math.abs(previousStrength - strength) > 0.004 || (strength === 0 && previousStrength !== 0)) {
+            node.style.setProperty('--sound-glow', strength.toFixed(3));
+          }
+          node.classList.toggle('is-sounding', !cell.hidden && strength > 0.025);
+          node.classList.toggle(
+            'is-note-source',
+            !cell.hidden && cell.id === voice.sourceId && strength > 0.035
+          );
+        }
+
+        gridFrame.style.setProperty('--ambient-energy', clamp(peakEnergy).toFixed(3));
+        gridFrame.style.setProperty('--ambient-rgb', TONE_RGB[peakTone]);
+        gridFrame.classList.toggle('is-resonating', peakEnergy > 0.025);
+      }
+
+      function animateSoundField(timestamp) {
+        var paintInterval = reduceMotionQuery.matches ? 96 : 30;
+        if (soundFrameTime && timestamp - soundFrameTime < paintInterval) {
+          soundFrame = window.requestAnimationFrame(animateSoundField);
+          return;
+        }
+        var elapsed = soundFrameTime ? Math.min(120, Math.max(8, timestamp - soundFrameTime)) : 16;
+        var seconds = elapsed / 1000;
+        var keepAnimating = false;
+        soundFrameTime = timestamp;
+
+        TONES.forEach(function (tone) {
+          var voice = visualVoices[tone];
+          var timeConstant = voice.target > voice.energy ? 0.16 : voice.releaseTime;
+          var amount = 1 - Math.exp(-seconds / Math.max(0.04, timeConstant));
+          voice.energy += (voice.target - voice.energy) * amount;
+          voice.phase = (voice.phase + seconds * (1.05 + voice.row * 0.018)) % (Math.PI * 2);
+          if (voice.target === 0 && voice.energy < 0.0025) voice.energy = 0;
+          if (voice.target > 0.0025 || voice.energy > 0.0025) keepAnimating = true;
+        });
+
+        renderSoundField(timestamp);
+
+        if (keepAnimating) {
+          soundFrame = window.requestAnimationFrame(animateSoundField);
+        } else {
+          soundFrame = null;
+          soundFrameTime = 0;
+        }
+      }
+
+      function ensureSoundAnimation() {
+        if (soundFrame !== null) return;
+        soundFrameTime = 0;
+        soundFrame = window.requestAnimationFrame(animateSoundField);
+      }
+
+      function updateVisualRig(tone, x, y, speed, sourceId, noteIndex) {
+        var row = y * 11;
+        var column = x * 11;
+        TONES.forEach(function (channelTone) {
+          var voice = visualVoices[channelTone];
+          if (channelTone === tone) {
+            voice.target = 0.88 + speed * 0.22;
+            voice.row = row;
+            voice.column = column;
+            voice.noteIndex = noteIndex;
+            voice.sourceId = findVisualSource(tone, row, column, sourceId);
+            voice.releaseTime = 1.15;
+          } else {
+            voice.target = 0.018;
+            voice.releaseTime = 0.72;
+          }
+        });
+        ensureSoundAnimation();
+      }
+
+      function releaseVisualRig(quick) {
+        TONES.forEach(function (tone) {
+          visualVoices[tone].target = 0;
+          visualVoices[tone].releaseTime = quick ? 0.07 : 1.15;
+        });
+        ensureSoundAnimation();
       }
 
       function renderInterface() {
@@ -1109,7 +1339,7 @@
         };
       }
 
-      function updateAudioRig(currentRig, tone, x, y, speed) {
+      function updateAudioRig(currentRig, tone, x, y, speed, sourceId) {
         var now = currentRig.context.currentTime;
         var noteIndex = Math.min(NOTE_STEPS.length - 1, Math.floor(x * NOTE_STEPS.length));
         var baseFrequency = 65.406 * Math.pow(2, NOTE_STEPS[noteIndex] / 12);
@@ -1138,6 +1368,7 @@
 
         holdAndTarget(currentRig.noiseGain.gain, tone === 'glow' ? 0.008 + speed * 0.018 : 0.0001, now, 0.1);
         holdAndTarget(currentRig.wetGain.gain, 0.34 + y * 0.42, now, 0.4);
+        updateVisualRig(tone, x, y, speed, sourceId, noteIndex);
       }
 
       function releaseAudioRig(currentRig, quick) {
@@ -1149,6 +1380,7 @@
           });
         });
         holdAndTarget(currentRig.noiseGain.gain, 0.0001, now, quick ? 0.05 : 0.45);
+        releaseVisualRig(Boolean(quick));
       }
 
       function applyMasterLevel(nextVolume, isMuted) {
@@ -1233,7 +1465,7 @@
           trailCells.push(cell.id);
           trailCells = trailCells.slice(-10);
         }
-        updateAudioRig(rig, cell.tone, x, y, speed);
+        updateAudioRig(rig, cell.tone, x, y, speed, cell.id);
         renderInterface();
       }
 
