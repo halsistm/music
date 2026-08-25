@@ -1,0 +1,1448 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#021012">
+  <meta name="description" content="光のグリッドをなぞって、ゆっくりほどけるアンビエント・ドローンを奏でる楽器。">
+  <title>Drift Grid — Ambient Drone Instrument</title>
+  <style>
+    :root {
+      --ink: #efffff;
+      --muted: #789699;
+      --line: rgba(167, 239, 242, 0.14);
+      --cyan: #55f5f5;
+      --pink: #ff56d6;
+      --yellow: #fff26a;
+      --page: #021012;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    html {
+      min-width: 320px;
+      background: var(--page);
+      color-scheme: dark;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, a, input { font: inherit; }
+    button { color: inherit; }
+
+    .app-shell {
+      isolation: isolate;
+      min-height: 100svh;
+      overflow: hidden;
+      position: relative;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(21, 100, 104, 0.16), transparent 42%),
+        linear-gradient(145deg, #031618 0%, #020a0c 52%, #061416 100%);
+    }
+
+    .app-shell::before {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      content: "";
+      pointer-events: none;
+      opacity: 0.18;
+      background-image:
+        linear-gradient(rgba(121, 227, 231, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(121, 227, 231, 0.035) 1px, transparent 1px);
+      background-size: 42px 42px;
+      -webkit-mask-image: linear-gradient(to bottom, black, transparent 78%);
+      mask-image: linear-gradient(to bottom, black, transparent 78%);
+    }
+
+    .ambient-haze {
+      position: absolute;
+      inset: 5% 12% 10%;
+      z-index: -1;
+      pointer-events: none;
+      filter: blur(90px);
+      opacity: 0.28;
+      background: conic-gradient(from 210deg, rgba(70, 252, 241, 0.1), rgba(246, 44, 206, 0.14), rgba(248, 229, 56, 0.08), rgba(70, 252, 241, 0.1));
+    }
+
+    .topbar {
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 18px clamp(20px, 4vw, 64px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(2, 13, 15, 0.62);
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: #dffeff;
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0.22em;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      display: grid;
+      grid-template-columns: repeat(3, 6px);
+      gap: 3px;
+    }
+
+    .brand-mark i {
+      width: 6px;
+      height: 18px;
+      display: block;
+      border-radius: 1px;
+      background: var(--cyan);
+      box-shadow: 0 0 12px rgba(85, 245, 245, 0.7);
+    }
+
+    .brand-mark i:nth-child(2) {
+      height: 12px;
+      margin-top: 6px;
+      background: var(--pink);
+      box-shadow: 0 0 12px rgba(255, 86, 214, 0.7);
+    }
+
+    .brand-mark i:nth-child(3) {
+      height: 15px;
+      margin-top: 3px;
+      background: var(--yellow);
+      box-shadow: 0 0 12px rgba(255, 242, 106, 0.7);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-pill, .quiet-button, .volume-control {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 13px;
+      border: 1px solid rgba(135, 222, 225, 0.13);
+      border-radius: 999px;
+      background: rgba(7, 28, 31, 0.64);
+      color: #8eaaac;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+
+    .quiet-button {
+      cursor: pointer;
+      color: #bcd2d4;
+      transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+    }
+
+    .quiet-button:disabled {
+      cursor: default;
+      opacity: 0.36;
+    }
+
+    .volume-control {
+      gap: 9px;
+      color: #829ea0;
+    }
+
+    .volume-control input {
+      width: 74px;
+      height: 2px;
+      accent-color: var(--cyan);
+      cursor: pointer;
+    }
+
+    .volume-control output {
+      min-width: 28px;
+      color: #bfd7d9;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quiet-button:hover:not(:disabled), .quiet-button:focus-visible {
+      color: #efffff;
+      border-color: rgba(135, 222, 225, 0.32);
+      background: rgba(16, 48, 52, 0.72);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #567072;
+    }
+
+    .status-dot.is-live {
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+    }
+
+    .instrument-layout {
+      width: min(1380px, calc(100% - 40px));
+      min-height: calc(100svh - 146px);
+      margin: 0 auto;
+      padding: clamp(28px, 5.5vh, 70px) 0 38px;
+      display: grid;
+      grid-template-columns: minmax(190px, 0.65fr) minmax(380px, 1.4fr) minmax(130px, 0.42fr);
+      gap: clamp(28px, 5vw, 78px);
+      align-items: center;
+    }
+
+    .intro-copy {
+      align-self: start;
+      padding-top: clamp(10px, 8vh, 90px);
+    }
+
+    .eyebrow, .legend-title, .start-kicker, .footer-note {
+      color: #719093;
+      font-size: 9px;
+      font-weight: 760;
+      letter-spacing: 0.18em;
+    }
+
+    .intro-copy h1 {
+      margin: 17px 0 20px;
+      color: #e8ffff;
+      font-size: clamp(29px, 3.2vw, 52px);
+      font-weight: 520;
+      letter-spacing: -0.045em;
+      line-height: 1.16;
+    }
+
+    .intro-note {
+      max-width: 260px;
+      margin: 0;
+      color: #789699;
+      font-size: 12px;
+      line-height: 1.9;
+    }
+
+    .grid-stage {
+      width: 100%;
+      display: grid;
+      place-items: center;
+    }
+
+    .grid-frame {
+      width: min(100%, 690px);
+      aspect-ratio: 1;
+      position: relative;
+      padding: clamp(16px, 2vw, 28px);
+      border: 1px solid rgba(125, 232, 235, 0.13);
+      border-radius: 30px;
+      background: rgba(2, 13, 15, 0.66);
+      box-shadow: 0 34px 110px rgba(0, 0, 0, 0.42), inset 0 0 70px rgba(74, 220, 221, 0.025);
+    }
+
+    .grid-frame.is-awake {
+      border-color: rgba(125, 232, 235, 0.22);
+      box-shadow: 0 34px 110px rgba(0, 0, 0, 0.42), 0 0 90px rgba(62, 226, 228, 0.035), inset 0 0 70px rgba(74, 220, 221, 0.035);
+    }
+
+    .grid-frame::before, .grid-frame::after {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      content: "";
+      border-color: rgba(139, 230, 233, 0.34);
+    }
+
+    .grid-frame::before {
+      top: 15px;
+      left: 15px;
+      border-top: 1px solid;
+      border-left: 1px solid;
+    }
+
+    .grid-frame::after {
+      right: 15px;
+      bottom: 15px;
+      border-right: 1px solid;
+      border-bottom: 1px solid;
+    }
+
+    .tone-grid {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: clamp(5px, 0.75vw, 10px);
+      padding: 4px;
+      position: relative;
+      outline: none;
+      cursor: crosshair;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    .tone-cell {
+      aspect-ratio: 1;
+      position: relative;
+      z-index: 1;
+      border-radius: 4px;
+      opacity: 0.8;
+      pointer-events: none;
+      animation: breathe 8s ease-in-out infinite;
+      animation-delay: calc(var(--delay) * -1);
+      transition: transform 220ms ease, filter 220ms ease, opacity 600ms ease, outline-color 180ms ease;
+    }
+
+    .tone-cell.is-trail {
+      z-index: 2;
+      opacity: calc(0.72 + var(--trail) * 0.28);
+      transform: scale(calc(1 + var(--trail) * 0.08));
+      filter: brightness(calc(1 + var(--trail) * 0.32));
+    }
+
+    .tone-cell.is-active {
+      z-index: 4;
+      opacity: 1;
+      transform: scale(1.16);
+      filter: brightness(1.38) saturate(1.1);
+    }
+
+    .tone-cell.is-keyboard:not(.is-hidden) {
+      outline: 1px solid rgba(235, 255, 255, 0.76);
+      outline-offset: 3px;
+    }
+
+    .tone-grid:not(:focus-visible) .tone-cell.is-keyboard { outline-color: transparent; }
+    .tone-cell.is-hidden { opacity: 0; }
+
+    .brush-glow {
+      position: absolute;
+      z-index: 3;
+      width: 18%;
+      aspect-ratio: 1;
+      border-radius: 999px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(0.72);
+      background: radial-gradient(circle, rgba(210, 255, 255, 0.15), rgba(91, 242, 244, 0.08) 28%, transparent 70%);
+      filter: blur(8px);
+      transition: opacity 420ms ease, transform 420ms ease;
+    }
+
+    .brush-glow.is-active {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .tone-air {
+      background: var(--cyan);
+      box-shadow: 0 0 10px rgba(85, 245, 245, 0.72), 0 0 24px rgba(46, 232, 236, 0.28), inset 0 0 5px rgba(255, 255, 255, 0.68);
+    }
+
+    .tone-bloom {
+      background: var(--pink);
+      box-shadow: 0 0 10px rgba(255, 86, 214, 0.76), 0 0 24px rgba(255, 45, 202, 0.28), inset 0 0 5px rgba(255, 255, 255, 0.62);
+    }
+
+    .tone-glow {
+      background: var(--yellow);
+      box-shadow: 0 0 10px rgba(255, 242, 106, 0.78), 0 0 24px rgba(255, 225, 44, 0.28), inset 0 0 5px rgba(255, 255, 255, 0.7);
+    }
+
+    .start-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      border-radius: inherit;
+      background: rgba(1, 11, 13, 0.48);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+
+    .start-card {
+      width: min(390px, 100%);
+      padding: clamp(26px, 4vw, 42px);
+      border: 1px solid rgba(143, 234, 236, 0.22);
+      border-radius: 22px;
+      background: rgba(4, 23, 26, 0.86);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48), inset 0 1px rgba(255, 255, 255, 0.035);
+      text-align: center;
+    }
+
+    .start-card h2 {
+      margin: 12px 0 11px;
+      font-size: clamp(27px, 4vw, 40px);
+      font-weight: 520;
+      letter-spacing: -0.04em;
+    }
+
+    .start-card > p:not(.start-kicker) {
+      max-width: 285px;
+      margin: 0 auto;
+      color: #88a5a7;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    .start-button {
+      width: 100%;
+      min-height: 52px;
+      margin-top: 24px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 0;
+      border-radius: 13px;
+      background: #dfffff;
+      color: #062023;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: 0.08em;
+      transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    .start-button:hover:not(:disabled), .start-button:focus-visible {
+      transform: translateY(-1px);
+      background: #fff;
+      box-shadow: 0 0 28px rgba(119, 251, 252, 0.25);
+    }
+
+    .start-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      transform: none;
+    }
+
+    .start-card small {
+      display: block;
+      margin-top: 13px;
+      color: #526e71;
+      font-size: 9px;
+      letter-spacing: 0.04em;
+    }
+
+    .gesture-hint {
+      position: absolute;
+      z-index: 7;
+      left: 50%;
+      bottom: 8%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateX(-50%);
+      padding: 10px 15px;
+      border: 1px solid rgba(163, 234, 236, 0.16);
+      border-radius: 999px;
+      background: rgba(1, 13, 15, 0.8);
+      color: #b6d2d4;
+      font-size: 10px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .gesture-ring {
+      width: 8px;
+      height: 8px;
+      border: 1px solid var(--cyan);
+      border-radius: 999px;
+      box-shadow: 0 0 8px var(--cyan);
+    }
+
+    .legend-panel {
+      align-self: end;
+      padding-bottom: clamp(20px, 9vh, 90px);
+    }
+
+    .legend-title { margin-bottom: 18px; }
+
+    .legend-item {
+      display: grid;
+      grid-template-columns: 9px 1fr;
+      align-items: center;
+      gap: 11px;
+      margin-top: 12px;
+      color: #799597;
+      font-size: 9px;
+      font-weight: 740;
+      letter-spacing: 0.16em;
+    }
+
+    .legend-swatch {
+      width: 7px;
+      height: 7px;
+      display: block;
+      border-radius: 2px;
+    }
+
+    .footer-note {
+      min-height: 72px;
+      padding: 0 clamp(20px, 4vw, 64px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-top: 1px solid var(--line);
+    }
+
+    .footer-note p { margin: 0; }
+
+    .help-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(0, 8, 10, 0.72);
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+      animation: fade-in 220ms ease both;
+    }
+
+    .help-card {
+      width: min(720px, 100%);
+      padding: clamp(24px, 4vw, 42px);
+      border: 1px solid rgba(143, 234, 236, 0.2);
+      border-radius: 24px;
+      background: linear-gradient(145deg, rgba(7, 29, 32, 0.98), rgba(2, 16, 18, 0.98));
+      box-shadow: 0 36px 120px rgba(0, 0, 0, 0.6);
+    }
+
+    .help-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .help-heading h2 {
+      margin: 10px 0 0;
+      font-size: clamp(24px, 4vw, 38px);
+      font-weight: 520;
+      letter-spacing: -0.045em;
+    }
+
+    .close-button {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      border: 1px solid rgba(143, 234, 236, 0.15);
+      border-radius: 999px;
+      background: rgba(8, 36, 39, 0.74);
+      color: #b5d1d3;
+      cursor: pointer;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 13px;
+      margin-top: 34px;
+    }
+
+    .help-grid > div {
+      min-height: 170px;
+      padding: 20px;
+      border: 1px solid rgba(143, 234, 236, 0.1);
+      border-radius: 16px;
+      background: rgba(11, 42, 45, 0.36);
+    }
+
+    .help-grid span {
+      display: block;
+      margin-bottom: 22px;
+      color: var(--cyan);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+    }
+
+    .help-grid strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 680;
+    }
+
+    .help-grid p {
+      margin: 10px 0 0;
+      color: #769497;
+      font-size: 11px;
+      line-height: 1.75;
+    }
+
+    .keyboard-note {
+      margin: 24px 0 0;
+      color: #5f7c7f;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-align: center;
+    }
+
+    .mobile-label { display: none; }
+
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0.64; transform: scale(0.97); }
+      50% { opacity: 0.94; transform: scale(1); }
+    }
+
+    @media (max-width: 900px) {
+      .instrument-layout {
+        grid-template-columns: minmax(0, 1fr);
+        width: min(700px, calc(100% - 32px));
+        gap: 24px;
+        padding: 28px 0 32px;
+      }
+
+      .intro-copy { padding-top: 0; }
+      .intro-copy h1 { margin-bottom: 11px; }
+      .intro-note { max-width: none; }
+
+      .legend-panel {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 0;
+      }
+
+      .legend-title { margin: 0 auto 0 0; }
+      .legend-item { margin: 0; }
+      .top-actions .status-pill, .top-actions .secondary-action { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        min-height: 64px;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .brand > span:last-child { display: none; }
+      .top-actions { gap: 5px; }
+      .volume-control { padding: 0 8px; gap: 6px; }
+      .volume-control input { width: 52px; }
+      .volume-control output { display: none; }
+
+      .quiet-button {
+        min-width: 42px;
+        min-height: 40px;
+        padding: 0 10px;
+      }
+
+      .desktop-label { display: none; }
+      .mobile-label { display: inline; }
+
+      .instrument-layout {
+        min-height: calc(100svh - 124px);
+        width: calc(100% - 24px);
+        padding-top: 22px;
+      }
+
+      .intro-copy h1 br { display: none; }
+
+      .grid-frame {
+        border-radius: 22px;
+        padding: 13px;
+      }
+
+      .tone-grid { gap: 5px; }
+      .tone-cell { border-radius: 2.5px; }
+      .start-layer { padding: 18px; }
+      .start-card { padding: 23px 20px; }
+      .legend-title { display: none; }
+      .legend-panel { justify-content: center; }
+
+      .footer-note {
+        min-height: 60px;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .footer-note p:first-child { display: none; }
+
+      .help-layer {
+        align-items: end;
+        padding: 12px;
+      }
+
+      .help-card {
+        max-height: calc(100svh - 24px);
+        overflow-y: auto;
+        border-radius: 22px;
+      }
+
+      .help-grid {
+        grid-template-columns: 1fr;
+        gap: 9px;
+        margin-top: 24px;
+      }
+
+      .help-grid > div { min-height: 0; }
+      .help-grid span { margin-bottom: 10px; }
+    }
+
+    @media (max-width: 370px) {
+      .volume-control > span { display: none; }
+      .volume-control input { width: 48px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <div class="ambient-haze" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#instrument" aria-label="Drift Grid ホーム">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>DRIFT GRID</span>
+      </a>
+
+      <div class="top-actions" aria-label="サウンド操作">
+        <span class="status-pill" aria-live="polite">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">SOUND ASLEEP</span>
+        </span>
+
+        <label class="volume-control">
+          <span>VOL</span>
+          <input id="volume" type="range" min="0" max="60" value="30" aria-label="音量">
+          <output id="volumeOutput">30%</output>
+        </label>
+
+        <button class="quiet-button" id="muteButton" type="button" disabled aria-label="音を止める">
+          <span class="desktop-label" id="muteDesktop">音を止める</span>
+          <span class="mobile-label" id="muteMobile">停止</span>
+        </button>
+        <button class="quiet-button secondary-action" id="clearButton" type="button" disabled>余韻を消す</button>
+        <button class="quiet-button help-button" id="helpButton" type="button">操作</button>
+      </div>
+    </header>
+
+    <section class="instrument-layout" id="instrument">
+      <div class="intro-copy">
+        <p class="eyebrow">GENERATIVE DRONE INSTRUMENT</p>
+        <h1>光をなぞって、<br>音をほどく。</h1>
+        <p class="intro-note">指先の位置と速さが、音程・明るさ・余韻へ変わります。</p>
+      </div>
+
+      <div class="grid-stage">
+        <div class="grid-frame" id="gridFrame">
+          <div
+            class="tone-grid"
+            id="toneGrid"
+            role="application"
+            tabindex="-1"
+            aria-label="光のグリッド楽器。ドラッグで演奏。矢印キーで移動し、スペースキーで音を鳴らせます。"
+          >
+            <span class="brush-glow" id="brushGlow" aria-hidden="true"></span>
+          </div>
+
+          <div class="start-layer" id="startLayer">
+            <div class="start-card">
+              <p class="start-kicker">A QUIET PLACE FOR SOUND</p>
+              <h2>音をひらく</h2>
+              <p id="startMessage">ドラッグするたび、ゆっくり育つドローンが生まれます。</p>
+              <button class="start-button" id="startButton" type="button">
+                <span>はじめる</span><span aria-hidden="true">→</span>
+              </button>
+              <small>小さめの音量で始まります · ヘッドフォン推奨</small>
+            </div>
+          </div>
+
+          <div class="gesture-hint" id="gestureHint" role="status" hidden>
+            <span class="gesture-ring" aria-hidden="true"></span>
+            光の上を、ゆっくりなぞってください
+          </div>
+        </div>
+      </div>
+
+      <div class="legend-panel" aria-label="音色の色分け">
+        <p class="legend-title">TONE COLORS</p>
+        <div class="legend-item"><span class="legend-swatch tone-air" aria-hidden="true"></span><span>AIR</span></div>
+        <div class="legend-item"><span class="legend-swatch tone-bloom" aria-hidden="true"></span><span>BLOOM</span></div>
+        <div class="legend-item"><span class="legend-swatch tone-glow" aria-hidden="true"></span><span>GLOW</span></div>
+      </div>
+    </section>
+
+    <footer class="footer-note">
+      <p>DRAG TO PLAY</p>
+      <p>横：音程　縦：明るさと余韻　速さ：揺らぎ</p>
+    </footer>
+
+    <div class="help-layer" id="helpLayer" role="presentation" hidden>
+      <section class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="help-heading">
+          <div>
+            <p class="start-kicker">HOW TO DRIFT</p>
+            <h2 id="helpTitle">光を、音として描く。</h2>
+          </div>
+          <button class="close-button" id="closeHelp" type="button" aria-label="操作説明を閉じる">×</button>
+        </div>
+        <div class="help-grid">
+          <div><span>01</span><strong>ゆっくりドラッグ</strong><p>押している間、音が育ちます。離すと長い余韻へ。</p></div>
+          <div><span>02</span><strong>位置を変える</strong><p>横で音程、縦で音の明るさと奥行きが変化。</p></div>
+          <div><span>03</span><strong>色をまたぐ</strong><p>シアン、マゼンタ、黄色で質感が溶け合います。</p></div>
+        </div>
+        <p class="keyboard-note">KEYBOARD　矢印：移動　SPACE：演奏　ESC：余韻を消す</p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var TONES = ['air', 'bloom', 'glow'];
+      var NOTE_STEPS = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24, 27];
+      var TONE_LEVELS = { air: 0.14, bloom: 0.11, glow: 0.075 };
+
+      var toneGrid = document.getElementById('toneGrid');
+      var gridFrame = document.getElementById('gridFrame');
+      var brushGlow = document.getElementById('brushGlow');
+      var startLayer = document.getElementById('startLayer');
+      var startMessage = document.getElementById('startMessage');
+      var startButton = document.getElementById('startButton');
+      var gestureHint = document.getElementById('gestureHint');
+      var statusText = document.getElementById('statusText');
+      var statusDot = document.getElementById('statusDot');
+      var volumeInput = document.getElementById('volume');
+      var volumeOutput = document.getElementById('volumeOutput');
+      var muteButton = document.getElementById('muteButton');
+      var muteDesktop = document.getElementById('muteDesktop');
+      var muteMobile = document.getElementById('muteMobile');
+      var clearButton = document.getElementById('clearButton');
+      var helpButton = document.getElementById('helpButton');
+      var helpLayer = document.getElementById('helpLayer');
+      var closeHelpButton = document.getElementById('closeHelp');
+
+      var cells = [];
+      var cellNodes = [];
+      var rig = null;
+      var awake = false;
+      var audioState = 'sleeping';
+      var muted = false;
+      var volume = 30;
+      var activeCell = null;
+      var trailCells = [];
+      var keyboardCell = 65;
+      var activePointer = null;
+      var drawing = false;
+      var keyboardPlaying = false;
+      var previousPoint = null;
+      var pendingPoint = null;
+      var animationFrame = null;
+      var trailTimeout = null;
+      var suspendTimeout = null;
+      var previousHelpFocus = null;
+
+      function clamp(value, min, max) {
+        var low = min === undefined ? 0 : min;
+        var high = max === undefined ? 1 : max;
+        return Math.min(high, Math.max(low, value));
+      }
+
+      function buildCells() {
+        var fragment = document.createDocumentFragment();
+        for (var id = 0; id < 144; id += 1) {
+          var row = Math.floor(id / 12);
+          var column = id % 12;
+          var tone = TONES[(row * 7 + column * 5 + (row % 3)) % TONES.length];
+          var hidden =
+            ((row === 2 || row === 5) && (column === 6 || column === 8)) ||
+            (row === 6 && column === 1) ||
+            (row === 10 && column === 5) ||
+            (row === 11 && column === 6);
+          var cell = {
+            id: id,
+            row: row,
+            column: column,
+            tone: tone,
+            hidden: hidden,
+            delay: ((id * 17) % 90) / 10
+          };
+          var node = document.createElement('span');
+          node.setAttribute('aria-hidden', 'true');
+          node.style.setProperty('--delay', cell.delay + 's');
+          cells.push(cell);
+          cellNodes.push(node);
+          fragment.appendChild(node);
+        }
+        toneGrid.insertBefore(fragment, brushGlow);
+        renderCells();
+      }
+
+      function renderCells() {
+        for (var index = 0; index < cells.length; index += 1) {
+          var cell = cells[index];
+          var node = cellNodes[index];
+          var trailIndex = trailCells.indexOf(cell.id);
+          var trailStrength = trailIndex < 0 || trailCells.length === 0 ? 0 : (trailIndex + 1) / trailCells.length;
+          var classNames = ['tone-cell', 'tone-' + cell.tone];
+          if (cell.hidden) classNames.push('is-hidden');
+          if (activeCell === cell.id) classNames.push('is-active');
+          if (trailIndex >= 0) classNames.push('is-trail');
+          if (keyboardCell === cell.id && awake) classNames.push('is-keyboard');
+          node.className = classNames.join(' ');
+          node.style.setProperty('--trail', String(trailStrength));
+        }
+      }
+
+      function renderInterface() {
+        var label = 'SOUND ASLEEP';
+        if (audioState === 'unsupported') label = 'AUDIO UNAVAILABLE';
+        else if (muted) label = 'SOUND MUTED';
+        else if (audioState === 'ready') label = 'SOUND LIVE';
+        else if (audioState === 'paused') label = 'TAP TO RESUME';
+
+        statusText.textContent = label;
+        statusDot.classList.toggle('is-live', audioState === 'ready' && !muted);
+        gridFrame.classList.toggle('is-awake', awake);
+        toneGrid.tabIndex = awake ? 0 : -1;
+        startLayer.hidden = awake;
+        startButton.disabled = audioState === 'unsupported';
+        startMessage.textContent = audioState === 'unsupported'
+          ? 'このブラウザでは音を準備できませんでした。別のブラウザでお試しください。'
+          : 'ドラッグするたび、ゆっくり育つドローンが生まれます。';
+        muteButton.disabled = !awake;
+        clearButton.disabled = !awake;
+        muteDesktop.textContent = muted ? '再開' : '音を止める';
+        muteMobile.textContent = muted ? '再開' : '停止';
+        muteButton.setAttribute('aria-label', muted ? '音を再開する' : '音を止める');
+        volumeInput.value = String(volume);
+        volumeOutput.value = volume + '%';
+        volumeOutput.textContent = volume + '%';
+        gestureHint.hidden = !(awake && activeCell === null && trailCells.length === 0);
+        renderCells();
+      }
+
+      function holdAndTarget(param, target, now, timeConstant) {
+        if (typeof param.cancelAndHoldAtTime === 'function') {
+          param.cancelAndHoldAtTime(now);
+        } else {
+          var current = param.value;
+          param.cancelScheduledValues(now);
+          param.setValueAtTime(current, now);
+        }
+        param.setTargetAtTime(target, now, timeConstant);
+      }
+
+      function createImpulse(context, seconds, decay) {
+        var duration = seconds === undefined ? 2.8 : seconds;
+        var curve = decay === undefined ? 2.5 : decay;
+        var frameCount = Math.floor(context.sampleRate * duration);
+        var impulse = context.createBuffer(2, frameCount, context.sampleRate);
+        for (var channel = 0; channel < impulse.numberOfChannels; channel += 1) {
+          var data = impulse.getChannelData(channel);
+          for (var frame = 0; frame < frameCount; frame += 1) {
+            var envelope = Math.pow(1 - frame / frameCount, curve);
+            data[frame] = (Math.random() * 2 - 1) * envelope;
+          }
+        }
+        return impulse;
+      }
+
+      function createNoiseBuffer(context) {
+        var frameCount = context.sampleRate * 2;
+        var buffer = context.createBuffer(1, frameCount, context.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var frame = 0; frame < frameCount; frame += 1) {
+          data[frame] = Math.random() * 2 - 1;
+        }
+        return buffer;
+      }
+
+      function createChannel(context, specs, filterType, filterQ, dryBus, reverbInput) {
+        var input = context.createGain();
+        var filter = context.createBiquadFilter();
+        var panner = context.createStereoPanner();
+        var gain = context.createGain();
+        var oscillators = [];
+
+        filter.type = filterType;
+        filter.frequency.value = 900;
+        filter.Q.value = filterQ;
+        gain.gain.value = 0.0001;
+
+        input.connect(filter);
+        filter.connect(panner);
+        panner.connect(gain);
+        gain.connect(dryBus);
+        gain.connect(reverbInput);
+
+        specs.forEach(function (spec, voiceIndex) {
+          var oscillator = context.createOscillator();
+          var oscillatorGain = context.createGain();
+          var baseDetune = spec.detune || 0;
+          oscillator.type = spec.type;
+          oscillator.frequency.value = 110 * spec.ratio;
+          oscillator.detune.value = baseDetune;
+          oscillatorGain.gain.value = spec.level;
+          oscillator.connect(oscillatorGain);
+          oscillatorGain.connect(input);
+          oscillator.start();
+          oscillators.push({
+            oscillator: oscillator,
+            ratio: spec.ratio,
+            baseDetune: baseDetune,
+            driftDirection: voiceIndex % 2 === 0 ? -1 : 1
+          });
+        });
+
+        return { input: input, filter: filter, panner: panner, gain: gain, oscillators: oscillators };
+      }
+
+      function createAudioRig(context, initialVolume) {
+        var dryBus = context.createGain();
+        var reverbInput = context.createGain();
+        var convolver = context.createConvolver();
+        var wetGain = context.createGain();
+        var compressor = context.createDynamicsCompressor();
+        var master = context.createGain();
+
+        dryBus.gain.value = 0.82;
+        convolver.buffer = createImpulse(context);
+        wetGain.gain.value = 0.48;
+        compressor.threshold.value = -18;
+        compressor.knee.value = 14;
+        compressor.ratio.value = 3.5;
+        compressor.attack.value = 0.01;
+        compressor.release.value = 0.55;
+        master.gain.value = (initialVolume / 100) * 0.75;
+
+        dryBus.connect(compressor);
+        reverbInput.connect(convolver);
+        convolver.connect(wetGain);
+        wetGain.connect(compressor);
+        compressor.connect(master);
+        master.connect(context.destination);
+
+        var channels = {
+          air: createChannel(
+            context,
+            [
+              { type: 'sine', ratio: 1, level: 0.65 },
+              { type: 'sine', ratio: 1.5, level: 0.22 }
+            ],
+            'lowpass', 0.8, dryBus, reverbInput
+          ),
+          bloom: createChannel(
+            context,
+            [
+              { type: 'triangle', ratio: 0.5, level: 0.52, detune: -5 },
+              { type: 'triangle', ratio: 1, level: 0.34, detune: 5 }
+            ],
+            'lowpass', 1.25, dryBus, reverbInput
+          ),
+          glow: createChannel(
+            context,
+            [
+              { type: 'sine', ratio: 2, level: 0.3 },
+              { type: 'triangle', ratio: 3, level: 0.12, detune: 7 }
+            ],
+            'bandpass', 0.72, dryBus, reverbInput
+          )
+        };
+
+        var shimmer = context.createOscillator();
+        var shimmerDepth = context.createGain();
+        shimmer.frequency.value = 0.075;
+        shimmerDepth.gain.value = 5;
+        shimmer.connect(shimmerDepth);
+        channels.bloom.oscillators.forEach(function (voice) {
+          shimmerDepth.connect(voice.oscillator.detune);
+        });
+        shimmer.start();
+
+        var noiseSource = context.createBufferSource();
+        var noiseFilter = context.createBiquadFilter();
+        var noiseGain = context.createGain();
+        noiseSource.buffer = createNoiseBuffer(context);
+        noiseSource.loop = true;
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.value = 1100;
+        noiseGain.gain.value = 0.0001;
+        noiseSource.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(channels.glow.input);
+        noiseSource.start();
+
+        return {
+          context: context,
+          channels: channels,
+          noiseGain: noiseGain,
+          wetGain: wetGain,
+          master: master
+        };
+      }
+
+      function updateAudioRig(currentRig, tone, x, y, speed) {
+        var now = currentRig.context.currentTime;
+        var noteIndex = Math.min(NOTE_STEPS.length - 1, Math.floor(x * NOTE_STEPS.length));
+        var baseFrequency = 65.406 * Math.pow(2, NOTE_STEPS[noteIndex] / 12);
+        var brightness = Math.pow(5000 / 240, 1 - y) * 240;
+        var pan = x * 1.3 - 0.65;
+
+        TONES.forEach(function (channelTone) {
+          var channel = currentRig.channels[channelTone];
+          var isSelected = channelTone === tone;
+          var gainTarget = isSelected ? TONE_LEVELS[channelTone] * (0.88 + speed * 0.22) : 0.0015;
+          var cutoffScale = channelTone === 'glow' ? 1.35 : (channelTone === 'bloom' ? 0.72 : 1);
+
+          holdAndTarget(channel.gain.gain, gainTarget, now, isSelected ? 0.16 : 0.72);
+          holdAndTarget(channel.filter.frequency, clamp(brightness * cutoffScale, 150, 6800), now, 0.12);
+          holdAndTarget(channel.panner.pan, pan, now, 0.18);
+          channel.oscillators.forEach(function (voice) {
+            holdAndTarget(voice.oscillator.frequency, baseFrequency * voice.ratio, now, 0.13);
+            holdAndTarget(
+              voice.oscillator.detune,
+              voice.baseDetune + voice.driftDirection * speed * 12,
+              now,
+              0.09
+            );
+          });
+        });
+
+        holdAndTarget(currentRig.noiseGain.gain, tone === 'glow' ? 0.008 + speed * 0.018 : 0.0001, now, 0.1);
+        holdAndTarget(currentRig.wetGain.gain, 0.34 + y * 0.42, now, 0.4);
+      }
+
+      function releaseAudioRig(currentRig, quick) {
+        var now = currentRig.context.currentTime;
+        TONES.forEach(function (tone) {
+          holdAndTarget(currentRig.channels[tone].gain.gain, 0.0001, now, quick ? 0.07 : 1.15);
+          currentRig.channels[tone].oscillators.forEach(function (voice) {
+            holdAndTarget(voice.oscillator.detune, voice.baseDetune, now, 0.45);
+          });
+        });
+        holdAndTarget(currentRig.noiseGain.gain, 0.0001, now, quick ? 0.05 : 0.45);
+      }
+
+      function applyMasterLevel(nextVolume, isMuted) {
+        if (!rig) return;
+        holdAndTarget(
+          rig.master.gain,
+          isMuted ? 0.0001 : (nextVolume / 100) * 0.75,
+          rig.context.currentTime,
+          0.08
+        );
+      }
+
+      async function wakeAudio() {
+        try {
+          if (!rig) {
+            var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+              audioState = 'unsupported';
+              renderInterface();
+              return false;
+            }
+            rig = createAudioRig(new AudioContextClass(), volume);
+          }
+
+          if (rig.context.state === 'suspended') await rig.context.resume();
+          awake = true;
+          audioState = 'ready';
+          muted = false;
+          applyMasterLevel(volume, false);
+          renderInterface();
+          return true;
+        } catch (error) {
+          audioState = 'unsupported';
+          renderInterface();
+          return false;
+        }
+      }
+
+      async function resumeAudio() {
+        if (!rig || !awake || document.hidden) return false;
+        try {
+          if (rig.context.state === 'suspended') await rig.context.resume();
+          audioState = 'ready';
+          applyMasterLevel(volume, muted);
+          renderInterface();
+          return true;
+        } catch (error) {
+          audioState = 'paused';
+          renderInterface();
+          return false;
+        }
+      }
+
+      function clearTrailLater(delay) {
+        if (trailTimeout !== null) window.clearTimeout(trailTimeout);
+        trailTimeout = window.setTimeout(function () {
+          trailCells = [];
+          renderInterface();
+        }, delay === undefined ? 3600 : delay);
+      }
+
+      function processPoint(point) {
+        if (!rig) return;
+        var bounds = toneGrid.getBoundingClientRect();
+        var x = clamp((point.x - bounds.left) / bounds.width);
+        var y = clamp((point.y - bounds.top) / bounds.height);
+        var column = Math.min(11, Math.floor(x * 12));
+        var row = Math.min(11, Math.floor(y * 12));
+        var cell = cells[row * 12 + column];
+        var distance = previousPoint ? Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y) : 0;
+        var elapsed = previousPoint ? Math.max(16, point.time - previousPoint.time) : 16;
+        var speed = clamp(distance / elapsed / 1.25);
+
+        previousPoint = point;
+        activeCell = cell.id;
+        keyboardCell = cell.id;
+        brushGlow.style.left = (x * 100) + '%';
+        brushGlow.style.top = (y * 100) + '%';
+        brushGlow.classList.add('is-active');
+        if (trailCells[trailCells.length - 1] !== cell.id) {
+          trailCells = trailCells.filter(function (id) { return id !== cell.id; });
+          trailCells.push(cell.id);
+          trailCells = trailCells.slice(-10);
+        }
+        updateAudioRig(rig, cell.tone, x, y, speed);
+        renderInterface();
+      }
+
+      function queuePoint(point) {
+        pendingPoint = point;
+        if (animationFrame !== null) return;
+        animationFrame = window.requestAnimationFrame(function () {
+          animationFrame = null;
+          if (!pendingPoint) return;
+          var nextPoint = pendingPoint;
+          pendingPoint = null;
+          processPoint(nextPoint);
+        });
+      }
+
+      function endGesture(quick) {
+        drawing = false;
+        activePointer = null;
+        previousPoint = null;
+        pendingPoint = null;
+        if (animationFrame !== null) {
+          window.cancelAnimationFrame(animationFrame);
+          animationFrame = null;
+        }
+        activeCell = null;
+        brushGlow.classList.remove('is-active');
+        if (rig) releaseAudioRig(rig, Boolean(quick));
+        clearTrailLater(quick ? 500 : 3800);
+        renderInterface();
+      }
+
+      function clearSound() {
+        keyboardPlaying = false;
+        endGesture(true);
+        trailCells = [];
+        renderInterface();
+        if (!rig) return;
+        var now = rig.context.currentTime;
+        holdAndTarget(rig.wetGain.gain, 0.0001, now, 0.06);
+        rig.wetGain.gain.setTargetAtTime(0.48, now + 0.8, 0.5);
+      }
+
+      function playKeyboardCell(index) {
+        if (!rig) return;
+        var cell = cells[index];
+        var bounds = toneGrid.getBoundingClientRect();
+        processPoint({
+          x: bounds.left + ((cell.column + 0.5) / 12) * bounds.width,
+          y: bounds.top + ((cell.row + 0.5) / 12) * bounds.height,
+          time: performance.now()
+        });
+      }
+
+      function openHelp() {
+        previousHelpFocus = document.activeElement;
+        helpLayer.hidden = false;
+        closeHelpButton.focus();
+      }
+
+      function closeHelp() {
+        helpLayer.hidden = true;
+        if (previousHelpFocus && typeof previousHelpFocus.focus === 'function') {
+          previousHelpFocus.focus();
+        }
+      }
+
+      startButton.addEventListener('click', async function () {
+        var ready = await wakeAudio();
+        if (ready) toneGrid.focus({ preventScroll: true });
+      });
+
+      volumeInput.addEventListener('input', function (event) {
+        volume = Number(event.target.value);
+        if (muted && volume > 0) muted = false;
+        applyMasterLevel(volume, false);
+        renderInterface();
+      });
+
+      muteButton.addEventListener('click', function () {
+        muted = !muted;
+        applyMasterLevel(volume, muted);
+        renderInterface();
+      });
+
+      clearButton.addEventListener('click', clearSound);
+      helpButton.addEventListener('click', openHelp);
+      closeHelpButton.addEventListener('click', closeHelp);
+      helpLayer.addEventListener('pointerdown', function (event) {
+        if (event.target === helpLayer) closeHelp();
+      });
+
+      toneGrid.addEventListener('pointerdown', function (event) {
+        if (!awake || audioState === 'unsupported' || activePointer !== null) return;
+        event.preventDefault();
+        toneGrid.focus({ preventScroll: true });
+        try { toneGrid.setPointerCapture(event.pointerId); } catch (error) { /* capture is best-effort */ }
+        activePointer = event.pointerId;
+        drawing = true;
+        previousPoint = null;
+        if (trailTimeout !== null) window.clearTimeout(trailTimeout);
+        if (rig && rig.context.state === 'suspended') void resumeAudio();
+        queuePoint({ x: event.clientX, y: event.clientY, time: event.timeStamp });
+      });
+
+      toneGrid.addEventListener('pointermove', function (event) {
+        if (!drawing || activePointer !== event.pointerId) return;
+        event.preventDefault();
+        queuePoint({ x: event.clientX, y: event.clientY, time: event.timeStamp });
+      });
+
+      function handlePointerEnd(event) {
+        if (activePointer !== event.pointerId) return;
+        event.preventDefault();
+        endGesture(false);
+      }
+
+      toneGrid.addEventListener('pointerup', handlePointerEnd);
+      toneGrid.addEventListener('pointercancel', handlePointerEnd);
+      toneGrid.addEventListener('lostpointercapture', function (event) {
+        if (drawing && activePointer === event.pointerId) endGesture(false);
+      });
+
+      toneGrid.addEventListener('keydown', function (event) {
+        var cell = cells[keyboardCell];
+        var nextRow = cell.row;
+        var nextColumn = cell.column;
+
+        if (event.key === 'ArrowUp') nextRow = Math.max(0, cell.row - 1);
+        else if (event.key === 'ArrowDown') nextRow = Math.min(11, cell.row + 1);
+        else if (event.key === 'ArrowLeft') nextColumn = Math.max(0, cell.column - 1);
+        else if (event.key === 'ArrowRight') nextColumn = Math.min(11, cell.column + 1);
+        else if (event.key === 'Escape') {
+          event.preventDefault();
+          clearSound();
+          return;
+        } else if (event.key === ' ' && !event.repeat) {
+          event.preventDefault();
+          keyboardPlaying = true;
+          previousPoint = null;
+          void wakeAudio().then(function (ready) {
+            if (ready && keyboardPlaying) playKeyboardCell(keyboardCell);
+          });
+          return;
+        } else {
+          return;
+        }
+
+        event.preventDefault();
+        keyboardCell = nextRow * 12 + nextColumn;
+        if (keyboardPlaying) playKeyboardCell(keyboardCell);
+        else renderInterface();
+      });
+
+      toneGrid.addEventListener('keyup', function (event) {
+        if (event.key !== ' ') return;
+        event.preventDefault();
+        keyboardPlaying = false;
+        endGesture(false);
+      });
+
+      toneGrid.addEventListener('blur', function () {
+        if (!keyboardPlaying) return;
+        keyboardPlaying = false;
+        endGesture(false);
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !helpLayer.hidden) {
+          event.preventDefault();
+          closeHelp();
+        }
+        if (audioState === 'paused' && !document.hidden) void resumeAudio();
+      });
+
+      document.addEventListener('pointerdown', function () {
+        if (audioState === 'paused' && !document.hidden) void resumeAudio();
+      }, { capture: true });
+
+      document.addEventListener('visibilitychange', function () {
+        if (!rig) return;
+        if (document.hidden) {
+          if (suspendTimeout !== null) window.clearTimeout(suspendTimeout);
+          endGesture(true);
+          holdAndTarget(rig.master.gain, 0.0001, rig.context.currentTime, 0.06);
+          audioState = 'paused';
+          renderInterface();
+          suspendTimeout = window.setTimeout(function () {
+            if (document.hidden && rig && rig.context.state === 'running') {
+              void rig.context.suspend();
+            }
+          }, 220);
+        } else {
+          if (suspendTimeout !== null) {
+            window.clearTimeout(suspendTimeout);
+            suspendTimeout = null;
+          }
+          void resumeAudio();
+        }
+      });
+
+      window.addEventListener('pagehide', function () {
+        if (!rig) return;
+        releaseAudioRig(rig, true);
+        holdAndTarget(rig.master.gain, 0.0001, rig.context.currentTime, 0.04);
+      });
+
+      buildCells();
+      renderInterface();
+    }());
+  </script>
+</body>
+</html>
