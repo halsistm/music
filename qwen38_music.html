@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DRONE MATRIX — アンビエント・ドローンパッド</title>
+<style>
+:root{--cy:#35f1ff;--mg:#ff4fd8;--ye:#ffe95c}
+html,body{height:100%}
+body{margin:0;overflow:hidden;background:radial-gradient(120% 120% at 50% 40%,#071019 0%,#030509 70%);
+color:#cfeef2;font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+-webkit-tap-highlight-color:transparent;user-select:none}
+#app{height:100%;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px}
+h1{font-size:15px;letter-spacing:.3em;margin:0;font-weight:700;
+background:linear-gradient(90deg,var(--cy),var(--mg),var(--ye));
+-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{font-size:10px;opacity:.55;letter-spacing:.12em}
+.spacer{flex:1}
+.ctl{display:flex;align-items:center;gap:6px;font-size:10px}
+input[type=range]{width:86px;accent-color:var(--cy)}
+select,button{background:#0a141c;color:#bff4fa;border:1px solid #1d3a46;border-radius:8px;padding:6px 10px;font-size:11px;letter-spacing:.08em}
+button{cursor:pointer;transition:.2s}
+button.on{border-color:var(--mg);color:#ffd7f6;box-shadow:0 0 12px #ff4fd855;background:linear-gradient(135deg,#0e2c33,#2a1030)}
+#stage{flex:1;position:relative;margin:0 10px 6px}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+footer{text-align:center;font-size:10px;opacity:.5;padding:0 10px 10px;letter-spacing:.08em}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#030509cc;backdrop-filter:blur(6px);z-index:9;transition:opacity .7s}
+#overlay.hide{opacity:0;pointer-events:none}
+#start{padding:18px 34px;font-size:15px;letter-spacing:.2em;border-radius:14px;border:1px solid #2b4b57;
+background:linear-gradient(135deg,#07222b,#241030);color:#e8fdff;box-shadow:0 0 30px #35f1ff33,inset 0 0 20px #35f1ff22}
+</style>
+</head>
+<body>
+<div id="app">
+ <header>
+  <div><h1>DRONE MATRIX</h1><div class="sub">なぞって奏でる アンビエント・ドローンパッド</div></div>
+  <div class="spacer"></div>
+  <label class="ctl">音量<input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+  <label class="ctl">リバーブ<input id="rev" type="range" min="0" max="1" step="0.01" value="0.65"></label>
+  <label class="ctl">余韻<input id="dec" type="range" min="2" max="14" step="0.5" value="7"></label>
+  <label class="ctl">音階<select id="scale">
+   <option value="hirajoshi" selected>平調子</option>
+   <option value="pentaM">ペンタ(マイナー)</option>
+   <option value="pentaP">ペンタ(メジャー)</option>
+   <option value="ryukyu">琉球</option>
+   <option value="whole">全音階</option>
+  </select></label>
+  <button id="rootBtn">基音ドローン</button>
+  <button id="clearBtn">消去</button>
+ </header>
+ <div id="stage"><canvas id="cv"></canvas></div>
+ <footer>ドラッグ / タップで光とドローンを描く ・ 縦=音高 横=定位 ・ ヘッドホン推奨 🎧</footer>
+</div>
+<div id="overlay"><button id="start">▶ TOUCH TO START</button></div>
+
+<script>
+(()=>{
+const COLS=12,ROWS=12,TAU=Math.PI*2,ROOT=65.406,LEVEL=.16,MAXV=32;
+const PAL=[{m:'#35f1ff',c:'#eaffff'},{m:'#ff4fd8',c:'#ffe1f9'},{m:'#ffe95c',c:'#fffbe2'}];
+const SCALES={hirajoshi:[0,2,3,7,8],pentaM:[0,3,5,7,10],pentaP:[0,2,4,7,9],ryukyu:[0,4,7,9,11],whole:[0,2,4,6,8,10]};
+let curScale='hirajoshi',DECAY=7;
+const stage=document.getElementById('stage'),cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const vol=document.getElementById('vol'),rev=document.getElementById('rev'),dec=document.getElementById('dec');
+const scaleSel=document.getElementById('scale'),rootBtn=document.getElementById('rootBtn'),clearBtn=document.getElementById('clearBtn');
+const overlay=document.getElementById('overlay'),startBtn=document.getElementById('start');
+let W=0,H=0,DPR=1;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);const r=stage.getBoundingClientRect();W=cv.width=r.width*DPR;H=cv.height=r.height*DPR}
+addEventListener('resize',resize);resize();
+
+/* ---------- cells ---------- */
+function sr(n){const x=Math.sin(n)*43758.5453;return x-Math.floor(x)}
+const cells=[];
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+ const s=i=>sr(r*12.9898+c*78.233+i*7.7);
+ cells.push({r,c,ci:(s(1)*3)|0,phase:s(2)*TAU,speed:.4+s(3)*.8,bias:.3+s(4)*.7,dark:s(5)<.07,energy:0,voice:null});
+}
+
+/* ---------- sprites ---------- */
+function hex2rgb(h){const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]}
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function makeSprite(p){
+ const S=256,c2=document.createElement('canvas');c2.width=c2.height=S;const g=c2.getContext('2d');
+ const[R,G,B]=hex2rgb(p.m);
+ const rg=g.createRadialGradient(S/2,S/2,S*.05,S/2,S/2,S/2);
+ rg.addColorStop(0,`rgba(${R},${G},${B},.85)`);rg.addColorStop(.35,`rgba(${R},${G},${B},.28)`);rg.addColorStop(1,`rgba(${R},${G},${B},0)`);
+ g.fillStyle=rg;g.fillRect(0,0,S,S);
+ const cs=S*.44,x=(S-cs)/2,lg=g.createLinearGradient(0,x,0,x+cs);
+ lg.addColorStop(0,p.c);lg.addColorStop(.55,p.m);lg.addColorStop(1,p.m);
+ g.fillStyle=lg;rr(g,x,x,cs,cs,cs*.22);g.fill();
+ return c2;
+}
+const sprites=PAL.map(makeSprite);
+
+/* ---------- audio ---------- */
+let AC=null,bus,volG,wetG,conv;
+function makeIR(dur,dc){const rate=AC.sampleRate,len=(rate*dur)|0,b=AC.createBuffer(2,len,rate);
+ for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<len;i++){const t=i/len;d[i]=(Math.random()*2-1)*Math.pow(1-t,dc)}}return b}
+function initAudio(){
+ if(AC)return;
+ AC=new(window.AudioContext||window.webkitAudioContext)();
+ bus=AC.createGain();
+ const dry=AC.createGain();dry.gain.value=.9;
+ volG=AC.createGain();volG.gain.value=+vol.value;
+ const comp=AC.createDynamicsCompressor();comp.threshold.value=-20;comp.ratio.value=6;
+ conv=AC.createConvolver();conv.buffer=makeIR(3.2,3);
+ const wetG0=AC.createGain();wetG0.gain.value=+rev.value*1.2;wetG=wetG0;
+ bus.connect(dry);dry.connect(volG);bus.connect(conv);conv.connect(wetG);wetG.connect(volG);
+ volG.connect(comp);comp.connect(AC.destination);
+}
+function ensureRun(){if(AC&&AC.state==='suspended')AC.resume()}
+function noteFreq(r){const sc=SCALES[curScale],i=ROWS-1-r;return ROOT*Math.pow(2,(sc[i%sc.length]+12*Math.floor(i/sc.length))/12)}
+
+const voices=new Set();
+function killVoice(v,tc=.5){
+ if(!AC)return;voices.delete(v);const t=AC.currentTime;
+ v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(0,t,tc);
+ v.oscs.forEach(o=>o.stop(t+tc*6+1));v.lfo.stop(t+tc*6+1);v.cell.voice=null;
+}
+function makeVoice(cell){
+ if(voices.size>=MAXV){let w=null,we=2;for(const v of voices)if(v.cell.energy<we){we=v.cell.energy;w=v}if(w)killVoice(w,.25)}
+ const t=AC.currentTime,f=noteFreq(cell.r);
+ const g=AC.createGain();g.gain.value=0;
+ const fl=AC.createBiquadFilter();fl.type='lowpass';fl.Q.value=.8;fl.frequency.value=Math.min(f*5,6000);
+ fl.connect(g);let tail=g;
+ if(AC.createStereoPanner){const p=AC.createStereoPanner();p.pan.value=((cell.c/(COLS-1))*2-1)*.75;g.connect(p);tail=p}
+ tail.connect(bus);
+ const lfo=AC.createOscillator();lfo.frequency.value=.05+Math.random()*.1;
+ const lg=AC.createGain();lg.gain.value=Math.min(f*1.8,900);lfo.connect(lg);lg.connect(fl.frequency);lfo.start(t);
+ const oscs=[],mk=(ty,fr,gv)=>{const o=AC.createOscillator();o.type=ty;o.frequency.value=fr;
+  const og=AC.createGain();og.gain.value=gv;o.connect(og);og.connect(fl);o.start(t);oscs.push(o)};
+ const d=()=>1+(Math.random()*.008-.004);
+ if(cell.ci===0){mk('sine',f*d(),1);mk('sine',f*d(),.8)}
+ else if(cell.ci===1){mk('triangle',f*d(),.85);mk('sine',f*d(),.5)}
+ else{mk('sine',f*d(),1);mk('sine',f*2*d(),.33);mk('triangle',f*.5*d(),.22)}
+ const v={cell,g,oscs,lfo};voices.add(v);return v;
+}
+function activate(cell){
+ if(!AC||AC.state!=='running')return;
+ if(cell.energy>.95)return;
+ cell.energy=1;
+ if(!cell.voice)cell.voice=makeVoice(cell);
+}
+
+/* ---------- root drone ---------- */
+let rootV=null;
+function startRoot(){
+ const t=AC.currentTime,g=AC.createGain();g.gain.value=0;g.connect(bus);
+ const fl=AC.createBiquadFilter();fl.type='lowpass';fl.frequency.value=500;fl.connect(g);
+ const oscs=[],mk=(ty,fr,gv)=>{const o=AC.createOscillator();o.type=ty;o.frequency.value=fr;
+  const og=AC.createGain();og.gain.value=gv;o.connect(og);og.connect(fl);o.start(t);oscs.push(o)};
+ mk('sine',ROOT,.7);mk('sine',ROOT/2,.5);mk('triangle',ROOT*1.5,.18);mk('triangle',ROOT*2,.12);
+ const lfo=AC.createOscillator();lfo.frequency.value=.06;
+ const lg=AC.createGain();lg.gain.value=.05;lfo.connect(lg);lg.connect(g.gain);lfo.start(t);
+ g.gain.setTargetAtTime(.16,t,2);
+ rootV={g,oscs,lfo};rootBtn.classList.add('on');
+}
+function stopRoot(){if(!rootV)return;const t=AC.currentTime;rootV.g.gain.setTargetAtTime(0,t,.8);
+ rootV.oscs.forEach(o=>o.stop(t+4));rootV.lfo.stop(t+4);rootV=null;rootBtn.classList.remove('on')}
+rootBtn.onclick=()=>{ensureRun();if(!AC)return;rootV?stopRoot():startRoot()};
+
+/* ---------- pointer ---------- */
+const ptrs=new Map();
+function cellAt(e){const r=cv.getBoundingClientRect();
+ const x=(e.clientX-r.left)/r.width*COLS|0,y=(e.clientY-r.top)/r.height*ROWS|0;
+ if(x<0||y<0||x>=COLS||y>=ROWS)return null;return cells[y*COLS+x]}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();ensureRun();
+ const c=cellAt(e);ptrs.set(e.pointerId,{cell:c});if(c)activate(c);cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;
+ const c=cellAt(e);if(!c){p.cell=null;return}
+ if(p.cell&&p.cell!==c){const a=p.cell,dx=c.c-a.c,dy=c.r-a.r,n=Math.max(Math.abs(dx),Math.abs(dy));
+  for(let i=1;i<=n;i++)activate(cells[(a.r+Math.round(dy*i/n))*COLS+(a.c+Math.round(dx*i/n))])}
+ else if(!p.cell)activate(c);
+ p.cell=c});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,e=>ptrs.delete(e.pointerId)));
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------- ui ---------- */
+startBtn.onclick=()=>{initAudio();AC.resume().then(()=>overlay.classList.add('hide'))};
+vol.oninput=()=>{if(AC)volG.gain.setTargetAtTime(+vol.value,AC.currentTime,.05)};
+rev.oninput=()=>{if(AC)wetG.gain.setTargetAtTime(+rev.value*1.2,AC.currentTime,.05)};
+dec.oninput=()=>DECAY=+dec.value;
+scaleSel.onchange=()=>curScale=scaleSel.value;
+clearBtn.onclick=()=>cells.forEach(c=>{c.energy=0;if(c.voice)killVoice(c.voice,.3)});
+
+/* ---------- render ---------- */
+let last=0,time=0;
+function frame(ts){
+ requestAnimationFrame(frame);
+ const dt=Math.min(.06,(ts-last)/1000||0);last=ts;time+=dt;
+ ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,W,H);
+ const pad=Math.min(W,H)*.02,gf=.3;
+ const size=Math.min((W-pad*2)/(COLS+gf*(COLS-1)),(H-pad*2)/(ROWS+gf*(ROWS-1)));
+ const gap=size*gf,gw=size*COLS+gap*(COLS-1),gh=size*ROWS+gap*(ROWS-1);
+ const ox=(W-gw)/2,oy=(H-gh)/2,now=AC?AC.currentTime:0;
+ ctx.globalCompositeOperation='lighter';
+ for(const cell of cells){
+  if(cell.energy>0){
+   cell.energy=Math.max(0,cell.energy-dt/DECAY);
+   if(cell.voice){
+    if(cell.energy===0)killVoice(cell.voice,.6);
+    else cell.voice.g.gain.setTargetAtTime(LEVEL*Math.pow(cell.energy,1.35),now,.12);
+   }
+  }
+  const cx=ox+cell.c*(size+gap),cy=oy+cell.r*(size+gap);
+  const tw=cell.dark?.04:(.5+.5*Math.sin(time*cell.speed+cell.phase));
+  const ds=size*2.1;
+  ctx.globalAlpha=.10+.16*tw*cell.bias;
+  ctx.drawImage(sprites[cell.ci],cx+size/2-ds/2,cy+size/2-ds/2,ds,ds);
+  if(cell.energy>0){
+   const e=cell.energy,s2=ds*(1+.15*e);
+   ctx.globalAlpha=Math.min(1,e*1.2);
+   ctx.drawImage(sprites[cell.ci],cx+size/2-s2/2,cy+size/2-s2/2,s2,s2);
+  }
+ }
+ ctx.globalAlpha=1;
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
